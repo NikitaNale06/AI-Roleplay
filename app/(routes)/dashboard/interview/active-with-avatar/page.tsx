@@ -79,7 +79,7 @@ const ActiveInterviewWithAvatar: React.FC = () => {
           <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-40">
             <div className="bg-white p-4 rounded-lg text-center flex items-center">
               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-2"></div>
-              <p className="text-sm">Setting up AI interviewer...</p>
+              <p className="text-sm">Setting up AI Roleplay...</p>
             </div>
           </div>
         )}

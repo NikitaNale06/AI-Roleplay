@@ -1,5 +1,11 @@
 /** @type {import('next').NextConfig} */
-const nextConfig: import('next').NextConfig = {
+
+const nextConfig = {
+  // Add this for static export
+  trailingSlash: true,
+  images: {
+    unoptimized: true
+  },
   webpack: (config: import('webpack').Configuration) => {
     // Handle the binary files
     config.resolve = {

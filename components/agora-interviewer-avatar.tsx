@@ -35,7 +35,7 @@ const AgoraInterviewerAvatar: React.FC<AgoraInterviewerAvatarProps> = ({
         
       } catch (err) {
         console.error('Failed to initialize avatar:', err);
-        setError('Failed to load interviewer avatar');
+        setError('Failed to load Roleplay avatar');
         setIsLoading(false);
         if (onAvatarReady) onAvatarReady();
       }

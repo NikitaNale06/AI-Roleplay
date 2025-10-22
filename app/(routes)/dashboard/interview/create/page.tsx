@@ -398,20 +398,30 @@ const InterviewCreatePage = () => {
 
   // Generate questions using AI API
   const generateQuestionsWithAI = async (): Promise<GeneratedQuestion[]> => {
-    const requestBody = {
-      ...formData,
-      resumeText: resumeText,
-      fieldCategory: detectedField,
-      generateFieldSpecific: true
-    };
+  const requestBody = {
+    ...formData,
+    resumeText: resumeText,
+    fieldCategory: detectedField,
+    generateFieldSpecific: true,
+    
+    // Ensure all context is passed
+    assessmentType: activeTab,
+    jobTitle: formData.title,
+    skills: formData.skills,
+    experience: formData.experience,
+    subject: formData.subject,
+    domain: formData.domain,
+    focusArea: formData.focusArea,
+    difficulty: formData.difficulty
+  };
+  const response = await fetch('/api/generate-questions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(requestBody),
+  });
 
-    const response = await fetch('/api/generate-questions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody),
-    });
 
     if (!response.ok) {
       throw new Error('AI service unavailable - using intelligent field-specific question generation.');
