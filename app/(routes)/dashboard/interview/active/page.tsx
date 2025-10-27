@@ -1,4 +1,3 @@
-// Add this at the top of your file if using older Node.js versions
 'use client';
 if (!AbortSignal.timeout) {
   AbortSignal.timeout = function(ms) {
@@ -206,8 +205,6 @@ interface GestureAnalysis {
   attention: number;
   gestures: number;
 }
-// Fixed RealTimeAnalyzer Class with better accuracy
-// Enhanced RealTimeAnalyzer with MediaPipe
 // Simplified and Robust RealTimeAnalyzer
 class RealTimeAnalyzer {
   private isInitialized = false;
@@ -488,6 +485,26 @@ class RealTimeAnalyzer {
     this.wordCount = 0;
   }
 
+  isUserActuallySpeaking(): boolean {
+    const currentAnalysis = this.getCurrentAnalysis();
+    return currentAnalysis.voice.volume > 25 && 
+           currentAnalysis.voice.confidence > 40 &&
+           this.hasUserSpoken;
+  }
+
+  getUserEngagementLevel(): number {
+    const currentAnalysis = this.getCurrentAnalysis();
+    if (!this.isUserActuallySpeaking()) {
+      return 0;
+    }
+    
+    return Math.round(
+      (currentAnalysis.gestures.attention * 0.4) +
+      (currentAnalysis.gestures.eyeContact * 0.3) +
+      (currentAnalysis.gestures.posture * 0.3)
+    );
+  }
+
   private getFallbackGestureAnalysis(): GestureAnalysis {
     return {
       eyeContact: 50,
@@ -697,10 +714,7 @@ const VideoInterviewer = ({
     </div>
   );
 };
-
-// Enhanced Comprehensive Feedback Display Component
-// Enhanced Comprehensive Feedback Display Component
-// Enhanced Comprehensive Feedback Display Component - Fixed at Bottom
+// FIXED: Comprehensive AI Assessment with proper layout
 const ComprehensiveFeedbackDisplay = ({ 
   feedback, 
   isVisible,
@@ -710,298 +724,315 @@ const ComprehensiveFeedbackDisplay = ({
   isVisible: boolean;
   onClose: () => void;
 }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+
   if (!isVisible || !feedback) return null;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-r from-blue-50 to-purple-50 border-t-4 border-blue-400 p-6 shadow-2xl z-50 max-h-[70vh] overflow-y-auto">
-      <div className="container mx-auto max-w-7xl">
-        <div className="flex items-start">
-          <Brain className="h-7 w-7 text-blue-600 mr-4 mt-1 flex-shrink-0" />
-          <div className="flex-1">
-            <div className="flex justify-between items-start mb-4 sticky top-0 bg-gradient-to-r from-blue-50 to-purple-50 py-2 z-10">
-              <h4 className="text-blue-800 font-semibold text-lg flex items-center gap-2">
-                <Sparkles className="h-5 w-5" />
-                Comprehensive AI Assessment
-              </h4>
-              <button 
-                onClick={onClose}
-                className="text-gray-500 hover:text-gray-700 text-sm bg-white px-3 py-1 rounded-lg border hover:bg-gray-50 transition-colors"
-              >
-                Close
-              </button>
+    <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-l-4 border-blue-400 rounded-lg shadow-lg mb-6 overflow-hidden">
+      <div className="flex flex-col h-full">
+        {/* Header - Always Visible */}
+        <div className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-purple-50 border-b border-blue-200">
+          <div className="flex items-center gap-3">
+            <Brain className="h-6 w-6 text-blue-600" />
+            <div>
+              <h4 className="text-blue-800 font-semibold text-lg">Comprehensive AI Assessment</h4>
+              <p className="text-blue-600 text-sm">Real-time performance analysis</p>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="p-2 text-gray-500 hover:text-gray-700 hover:bg-white rounded-lg transition-colors border border-gray-300"
+              title={isExpanded ? 'Collapse Details' : 'Expand Details'}
+            >
+              {isExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            </button>
+            <button 
+              onClick={onClose}
+              className="px-3 py-2 text-sm text-gray-600 hover:text-gray-800 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <div className="p-4 bg-white">
+          {/* Overall Score Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-3 rounded-lg border border-blue-200 text-center">
+              <div className={`text-xl font-bold ${
+                feedback.overallScore >= 80 ? 'text-green-600' :
+                feedback.overallScore >= 70 ? 'text-blue-600' : 
+                feedback.overallScore >= 60 ? 'text-yellow-600' : 'text-red-600'
+              }`}>
+                {feedback.overallScore}%
+              </div>
+              <div className="text-xs text-gray-600 font-medium">Overall</div>
             </div>
             
-            {/* Overall Score */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-              <div className="bg-white p-4 rounded-lg border text-center shadow-sm">
-                <div className={`text-2xl font-bold ${
-                  feedback.overallScore >= 80 ? 'text-green-600' :
-                  feedback.overallScore >= 70 ? 'text-blue-600' : 
-                  feedback.overallScore >= 60 ? 'text-yellow-600' : 'text-red-600'
-                }`}>
-                  {feedback.overallScore}%
-                </div>
-                <div className="text-sm text-gray-600">Overall</div>
+            <div className="bg-gradient-to-br from-green-50 to-green-100 p-3 rounded-lg border border-green-200 text-center">
+              <div className={`text-lg font-bold ${
+                feedback.contentScore >= 80 ? 'text-green-600' :
+                feedback.contentScore >= 70 ? 'text-blue-600' : 'text-yellow-600'
+              }`}>
+                {feedback.contentScore}%
               </div>
-              
-              <div className="bg-white p-4 rounded-lg border text-center shadow-sm">
-                <div className={`text-xl font-bold ${
-                  feedback.contentScore >= 80 ? 'text-green-600' :
-                  feedback.contentScore >= 70 ? 'text-blue-600' : 'text-yellow-600'
-                }`}>
-                  {feedback.contentScore}%
-                </div>
-                <div className="text-sm text-gray-600">Content</div>
-              </div>
-              
-              <div className="bg-white p-4 rounded-lg border text-center shadow-sm">
-                <div className={`text-xl font-bold ${
-                  feedback.voiceScore >= 80 ? 'text-green-600' :
-                  feedback.voiceScore >= 70 ? 'text-blue-600' : 'text-yellow-600'
-                }`}>
-                  {feedback.voiceScore}%
-                </div>
-                <div className="text-sm text-gray-600">Delivery</div>
-              </div>
-              
-              <div className="bg-white p-4 rounded-lg border text-center shadow-sm">
-                <div className={`text-xl font-bold ${
-                  feedback.behavioralScore >= 80 ? 'text-green-600' :
-                  feedback.behavioralScore >= 70 ? 'text-blue-600' : 'text-yellow-600'
-                }`}>
-                  {feedback.behavioralScore}%
-                </div>
-                <div className="text-sm text-gray-600">Behavior</div>
-              </div>
+              <div className="text-xs text-gray-600 font-medium">Content</div>
             </div>
-
-            {/* Detailed Metrics */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-              {/* Voice Metrics */}
-              <div className="bg-white p-4 rounded-lg border shadow-sm">
-                <h5 className="text-blue-700 font-medium mb-3 text-sm flex items-center gap-2">
-                  <Volume2 className="h-4 w-4" />
-                  Voice Analysis
-                </h5>
-                <div className="space-y-2 text-xs">
-                  <div className="flex justify-between">
-                    <span>Volume:</span>
-                    <span>{Math.round(feedback.voiceAnalysis.volume)}%</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Clarity:</span>
-                    <span>{Math.round(feedback.voiceAnalysis.clarity)}%</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Pace:</span>
-                    <span>{Math.round(feedback.voiceAnalysis.pace)} wpm</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Filler Words:</span>
-                    <span>{feedback.voiceAnalysis.fillerWords}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Confidence:</span>
-                    <span>{Math.round(feedback.voiceAnalysis.confidence)}%</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Tone:</span>
-                    <span>{Math.round(feedback.voiceAnalysis.tone)}%</span>
-                  </div>
-                </div>
+            
+            <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-3 rounded-lg border border-purple-200 text-center">
+              <div className={`text-lg font-bold ${
+                feedback.voiceScore >= 80 ? 'text-green-600' :
+                feedback.voiceScore >= 70 ? 'text-blue-600' : 'text-yellow-600'
+              }`}>
+                {feedback.voiceScore}%
               </div>
-
-              {/* Behavior Metrics */}
-              <div className="bg-white p-4 rounded-lg border shadow-sm">
-                <h5 className="text-green-700 font-medium mb-3 text-sm flex items-center gap-2">
-                  <User className="h-4 w-4" />
-                  Behavior Analysis
-                </h5>
-                <div className="space-y-2 text-xs">
-                  <div className="flex justify-between">
-                    <span>Eye Contact:</span>
-                    <span>{Math.round(feedback.behavioralAnalysis.eyeContact)}%</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Posture:</span>
-                    <span>{Math.round(feedback.behavioralAnalysis.posture)}%</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Gestures:</span>
-                    <span>{Math.round(feedback.behavioralAnalysis.gestures)}%</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Facial Expressions:</span>
-                    <span>{Math.round(feedback.behavioralAnalysis.facialExpressions)}%</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Engagement:</span>
-                    <span>{Math.round(feedback.behavioralAnalysis.engagement)}%</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Professionalism:</span>
-                    <span>{Math.round(feedback.behavioralAnalysis.professionalism)}%</span>
-                  </div>
-                </div>
-              </div>
+              <div className="text-xs text-gray-600 font-medium">Delivery</div>
             </div>
-
-            {/* Content Analysis */}
-            <div className="bg-white p-4 rounded-lg border mb-6 shadow-sm">
-              <h5 className="text-purple-700 font-medium mb-3 text-sm flex items-center gap-2">
-                <MessageSquare className="h-4 w-4" />
-                Content Analysis
-              </h5>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                <div>
-                  <div className="text-lg font-bold text-purple-600">
-                    {Math.round(feedback.contentAnalysis.relevance)}%
-                  </div>
-                  <div className="text-xs text-gray-600">Relevance</div>
-                </div>
-                <div>
-                  <div className="text-lg font-bold text-purple-600">
-                    {Math.round(feedback.contentAnalysis.structure)}%
-                  </div>
-                  <div className="text-xs text-gray-600">Structure</div>
-                </div>
-                <div>
-                  <div className="text-lg font-bold text-purple-600">
-                    {Math.round(feedback.contentAnalysis.examples)}%
-                  </div>
-                  <div className="text-xs text-gray-600">Examples</div>
-                </div>
-                <div>
-                  <div className="text-lg font-bold text-purple-600">
-                    {Math.round(feedback.contentAnalysis.depth)}%
-                  </div>
-                  <div className="text-xs text-gray-600">Depth</div>
-                </div>
+            
+            <div className="bg-gradient-to-br from-teal-50 to-teal-100 p-3 rounded-lg border border-teal-200 text-center">
+              <div className={`text-lg font-bold ${
+                feedback.behavioralScore >= 80 ? 'text-green-600' :
+                feedback.behavioralScore >= 70 ? 'text-blue-600' : 'text-yellow-600'
+              }`}>
+                {feedback.behavioralScore}%
               </div>
+              <div className="text-xs text-gray-600 font-medium">Behavior</div>
             </div>
+          </div>
 
-            {/* Strengths & Improvements */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-              <div className="bg-green-50 p-4 rounded-lg border border-green-200 shadow-sm">
-                <h5 className="text-green-700 font-medium mb-3 text-sm flex items-center gap-2">
-                  <CheckCircle className="h-4 w-4" />
-                  Strengths
-                </h5>
-                <ul className="text-green-800 text-sm space-y-1">
-                  {feedback.strengths.map((strength, index) => (
-                    <li key={index} className="flex items-start">
-                      <span className="w-2 h-2 bg-green-500 rounded-full mt-1.5 mr-2 flex-shrink-0"></span>
-                      {strength}
-                    </li>
-                  ))}
-                  {feedback.strengths.length === 0 && (
-                    <li className="text-green-600 italic">Keep practicing to build your strengths!</li>
-                  )}
-                </ul>
+          {/* Quick Stats */}
+          <div className="grid grid-cols-3 gap-3 mb-4 text-center">
+            <div className="bg-gray-50 p-2 rounded border">
+              <div className="text-sm font-bold text-gray-800">
+                {Math.round(feedback.contentAnalysis.relevance)}%
               </div>
-              
-              <div className="bg-orange-50 p-4 rounded-lg border border-orange-200 shadow-sm">
-                <h5 className="text-orange-700 font-medium mb-3 text-sm flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4" />
-                  Areas for Improvement
-                </h5>
-                <ul className="text-orange-800 text-sm space-y-1">
-                  {feedback.improvements.map((improvement, index) => (
-                    <li key={index} className="flex items-start">
-                      <span className="w-2 h-2 bg-orange-500 rounded-full mt-1.5 mr-2 flex-shrink-0"></span>
-                      {improvement}
-                    </li>
-                  ))}
-                  {feedback.improvements.length === 0 && (
-                    <li className="text-orange-600 italic">Great job! Continue building on your strong foundation.</li>
-                  )}
-                </ul>
-              </div>
+              <div className="text-xs text-gray-600">Relevance</div>
             </div>
+            <div className="bg-gray-50 p-2 rounded border">
+              <div className="text-sm font-bold text-gray-800">
+                {Math.round(feedback.contentAnalysis.structure)}%
+              </div>
+              <div className="text-xs text-gray-600">Structure</div>
+            </div>
+            <div className="bg-gray-50 p-2 rounded border">
+              <div className="text-sm font-bold text-gray-800">
+                {Math.round(feedback.contentAnalysis.examples)}%
+              </div>
+              <div className="text-xs text-gray-600">Examples</div>
+            </div>
+          </div>
 
-            {/* Specific Suggestions */}
-            <div className="mt-6">
-              <h5 className="text-blue-700 font-medium mb-3 text-sm flex items-center gap-2">
-                <Zap className="h-4 w-4" />
-                Specific Suggestions
-              </h5>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {feedback.specificSuggestions.content.length > 0 && (
-                  <div className="bg-blue-50 p-3 rounded-lg border border-blue-200 shadow-sm">
-                    <h6 className="text-blue-700 font-medium mb-2 text-xs flex items-center gap-1">
-                      <MessageSquare className="h-3 w-3" />
-                      Content Tips
-                    </h6>
-                    <ul className="text-blue-800 text-xs space-y-1">
-                      {feedback.specificSuggestions.content.map((tip, index) => (
-                        <li key={index}>• {tip}</li>
-                      ))}
-                    </ul>
+          {/* Expandable Detailed Analysis */}
+          {isExpanded && (
+            <div className="border-t pt-4 mt-4 space-y-4">
+              {/* Voice & Behavior Analysis */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                  <h5 className="text-blue-700 font-medium mb-2 text-sm flex items-center gap-2">
+                    <Volume2 className="h-4 w-4" />
+                    Voice Analysis
+                  </h5>
+                  <div className="space-y-2 text-xs">
+                    {Object.entries(feedback.voiceAnalysis).map(([key, value]) => (
+                      <div key={key} className="flex justify-between items-center">
+                        <span className="text-gray-600 capitalize">{key.replace(/([A-Z])/g, ' $1')}:</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-gray-800 w-10 text-right">
+                            {typeof value === 'number' ? Math.round(value) + (key === 'pace' ? '' : '%') : value}
+                          </span>
+                          <div className="w-16 bg-gray-200 rounded-full h-1.5">
+                            <div 
+                              className="h-1.5 rounded-full bg-blue-500"
+                              style={{ width: `${Math.min(100, typeof value === 'number' ? value : 0)}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                )}
+                </div>
+
+                <div className="bg-green-50 p-3 rounded-lg border border-green-200">
+                  <h5 className="text-green-700 font-medium mb-2 text-sm flex items-center gap-2">
+                    <User className="h-4 w-4" />
+                    Behavior Analysis
+                  </h5>
+                  <div className="space-y-2 text-xs">
+                    {Object.entries(feedback.behavioralAnalysis).map(([key, value]) => {
+                      if (key === 'analysis') return null;
+                      return (
+                        <div key={key} className="flex justify-between items-center">
+                          <span className="text-gray-600 capitalize">{key.replace(/([A-Z])/g, ' $1')}:</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-gray-800 w-10 text-right">
+                              {typeof value === 'number' ? Math.round(value) + '%' : value}
+                            </span>
+                            <div className="w-16 bg-gray-200 rounded-full h-1.5">
+                              <div 
+                                className="h-1.5 rounded-full bg-green-500"
+                                style={{ width: `${Math.min(100, typeof value === 'number' ? value : 0)}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Strengths & Improvements */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-3 rounded-lg border border-green-200">
+                  <h5 className="text-green-700 font-medium mb-2 text-sm flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4" />
+                    Strengths
+                  </h5>
+                  <ul className="text-green-800 text-xs space-y-1">
+                    {feedback.strengths.map((strength, index) => (
+                      <li key={index} className="flex items-start">
+                        <span className="w-1.5 h-1.5 bg-green-500 rounded-full mt-1 mr-2 flex-shrink-0"></span>
+                        {strength}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
                 
-                {feedback.specificSuggestions.delivery.length > 0 && (
-                  <div className="bg-purple-50 p-3 rounded-lg border border-purple-200 shadow-sm">
-                    <h6 className="text-purple-700 font-medium mb-2 text-xs flex items-center gap-1">
-                      <Volume2 className="h-3 w-3" />
-                      Voice & Delivery
-                    </h6>
-                    <ul className="text-purple-800 text-xs space-y-1">
-                      {feedback.specificSuggestions.delivery.map((tip, index) => (
-                        <li key={index}>• {tip}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                
-                {feedback.specificSuggestions.behavior.length > 0 && (
-                  <div className="bg-teal-50 p-3 rounded-lg border border-teal-200 shadow-sm">
-                    <h6 className="text-teal-700 font-medium mb-2 text-xs flex items-center gap-1">
-                      <User className="h-3 w-3" />
-                      Body Language
-                    </h6>
-                    <ul className="text-teal-800 text-xs space-y-1">
-                      {feedback.specificSuggestions.behavior.map((tip, index) => (
-                        <li key={index}>• {tip}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+                <div className="bg-gradient-to-br from-orange-50 to-amber-50 p-3 rounded-lg border border-orange-200">
+                  <h5 className="text-orange-700 font-medium mb-2 text-sm flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4" />
+                    Improvements
+                  </h5>
+                  <ul className="text-orange-800 text-xs space-y-1">
+                    {feedback.improvements.map((improvement, index) => (
+                      <li key={index} className="flex items-start">
+                        <span className="w-1.5 h-1.5 bg-orange-500 rounded-full mt-1 mr-2 flex-shrink-0"></span>
+                        {improvement}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               </div>
-            </div>
 
-            {/* Detailed Feedback */}
-            <div className="mt-6 bg-white p-4 rounded-lg border shadow-sm">
-              <h5 className="text-gray-700 font-medium mb-2 text-sm flex items-center gap-2">
-                <AlertCircle className="h-4 w-4" />
-                Detailed Assessment
-              </h5>
-              <p className="text-gray-800 text-sm leading-relaxed">
-                {feedback.detailedFeedback}
-              </p>
+              {/* Specific Suggestions */}
+              {feedback.specificSuggestions && (
+                <div className="bg-gradient-to-br from-purple-50 to-indigo-50 p-3 rounded-lg border border-purple-200">
+                  <h5 className="text-purple-700 font-medium mb-2 text-sm flex items-center gap-2">
+                    <Zap className="h-4 w-4" />
+                    Specific Suggestions
+                  </h5>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                    {feedback.specificSuggestions.content.length > 0 && (
+                      <div>
+                        <h6 className="text-purple-600 font-medium mb-1">Content Tips</h6>
+                        <ul className="text-purple-700 space-y-0.5">
+                          {feedback.specificSuggestions.content.slice(0, 2).map((tip, index) => (
+                            <li key={index}>• {tip}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    
+                    {feedback.specificSuggestions.delivery.length > 0 && (
+                      <div>
+                        <h6 className="text-blue-600 font-medium mb-1">Voice & Delivery</h6>
+                        <ul className="text-blue-700 space-y-0.5">
+                          {feedback.specificSuggestions.delivery.slice(0, 2).map((tip, index) => (
+                            <li key={index}>• {tip}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    
+                    {feedback.specificSuggestions.behavior.length > 0 && (
+                      <div>
+                        <h6 className="text-teal-600 font-medium mb-1">Body Language</h6>
+                        <ul className="text-teal-700 space-y-0.5">
+                          {feedback.specificSuggestions.behavior.slice(0, 2).map((tip, index) => (
+                            <li key={index}>• {tip}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
+          )}
+
+          {/* Assessment Summary - Always Visible */}
+          <div className="bg-gradient-to-r from-gray-50 to-blue-50 p-3 rounded-lg border border-gray-200 mt-3">
+            <h5 className="text-gray-700 font-medium mb-1 text-sm flex items-center gap-2">
+              <AlertCircle className="h-4 w-4" />
+              Assessment Summary
+            </h5>
+            <p className="text-gray-800 text-xs leading-relaxed">
+              {feedback.detailedFeedback}
+            </p>
+            {!isExpanded && (
+              <button 
+                onClick={() => setIsExpanded(true)}
+                className="text-blue-600 hover:text-blue-800 text-xs font-medium mt-2 flex items-center gap-1"
+              >
+                Show detailed analysis <Maximize2 className="h-3 w-3" />
+              </button>
+            )}
           </div>
         </div>
       </div>
     </div>
   );
 };
-
-
-
-// Corrected Answer Display Component
-// Enhanced Corrected Answer Display Component
+// Enhanced CorrectedAnswerDisplay Component with 30-second timer
 const CorrectedAnswerDisplay = ({ 
   correctedAnswer, 
   expectedAnswer, 
   isVisible,
-  onClose 
+  onClose,
+  autoCloseDelay = 30000 // 30 seconds default
 }: { 
   correctedAnswer: string; 
   expectedAnswer: string; 
   isVisible: boolean;
   onClose: () => void;
+  autoCloseDelay?: number;
 }) => {
+  const [timeLeft, setTimeLeft] = useState(autoCloseDelay / 1000);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (isVisible) {
+      setTimeLeft(autoCloseDelay / 1000);
+      
+      // Start countdown timer
+      timerRef.current = setInterval(() => {
+        setTimeLeft(prev => {
+          if (prev <= 1) {
+            if (timerRef.current) clearInterval(timerRef.current);
+            onClose();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } else {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    }
+
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, [isVisible, onClose, autoCloseDelay]);
+
   if (!isVisible) return null;
 
   return (
@@ -1013,12 +1044,15 @@ const CorrectedAnswerDisplay = ({
             <h4 className="text-green-800 font-semibold text-lg flex items-center gap-2">
               <Sparkles className="h-5 w-5" />
               How to Improve Your Answer
+              <span className="text-sm font-normal text-green-600 bg-green-100 px-2 py-1 rounded-full">
+                Auto-closes in: {timeLeft}s
+              </span>
             </h4>
             <button 
               onClick={onClose}
-              className="text-gray-500 hover:text-gray-700 text-sm bg-white px-3 py-1 rounded-lg border"
+              className="text-gray-500 hover:text-gray-700 text-sm bg-white px-3 py-1 rounded-lg border hover:bg-gray-50 transition-colors"
             >
-              Close
+              Close Now
             </button>
           </div>
           
@@ -1075,6 +1109,20 @@ const CorrectedAnswerDisplay = ({
                 <li>• Use natural gestures</li>
                 <li>• Sit with good posture</li>
               </ul>
+            </div>
+          </div>
+
+          {/* Progress Bar */}
+          <div className="mt-4">
+            <div className="flex justify-between text-xs text-green-700 mb-1">
+              <span>Time remaining to read suggestions</span>
+              <span>{timeLeft}s</span>
+            </div>
+            <div className="w-full bg-green-200 rounded-full h-2">
+              <div 
+                className="bg-green-500 h-2 rounded-full transition-all duration-1000 ease-linear"
+                style={{ width: `${(timeLeft / (autoCloseDelay / 1000)) * 100}%` }}
+              ></div>
             </div>
           </div>
         </div>
@@ -1150,6 +1198,12 @@ const FollowUpQuestionDisplay = ({
               This is follow-up question {followUpCount} of {maxFollowUps}. Please provide more details to improve your response.
             </p>
           </div>
+
+{followUpCount === maxFollowUps && (
+  <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-700">
+    <strong>Note:</strong> This is your final follow-up question for this topic. After your response, we'll provide comprehensive feedback and move to the next question.
+  </div>
+)}
 
           {/* Answer Input Area for Follow-up Questions */}
           <div className="mb-4">
@@ -1424,21 +1478,22 @@ const InterviewerResponseDisplay = ({
     </div>
   );
 };
-
-// Enhanced Real Analysis Functions
-// ENHANCED: Improved real-time analysis with better data validation
-// Enhanced analysis function with MediaPipe
-// Enhanced analysis function with MediaPipe
 // Simplified behavior analysis without MediaPipe
-const analyzeBehaviorFromVideo = async (videoElement: HTMLVideoElement): Promise<BehavioralAnalysis> => {
+const analyzeBehaviorFromVideo = async (videoElement: HTMLVideoElement, isUserAnswering: boolean): Promise<BehavioralAnalysis> => {
   try {
-    if (!videoElement || videoElement.readyState < 2) {
+    if (!videoElement || videoElement.readyState < 2 || !isUserAnswering) {
       return getFallbackBehavioralAnalysis();
     }
 
-    // Use our simplified analyzer instead of MediaPipe
     const gestureAnalysis = await realTimeAnalyzer.analyzeVideoFrame(videoElement);
     
+    // Only score if user is actually visible and engaged
+    const isUserEngaged = gestureAnalysis.attention > 30 && gestureAnalysis.eyeContact > 20;
+    
+    if (!isUserEngaged) {
+      return getFallbackBehavioralAnalysis();
+    }
+
     const behavioralScore = Math.round(
       (gestureAnalysis.eyeContact * 0.25) +
       (gestureAnalysis.posture * 0.20) +
@@ -1519,61 +1574,142 @@ const getEnhancedFallbackBehavioralAnalysis = (): BehavioralAnalysis => {
     }
   };
 };
-
-// Enhanced content scoring function
+// FIXED: Accurate content scoring function
+// FIXED: Accurate content scoring with gibberish detection
 const calculateContentScore = (answer: string, question: Question): number => {
-  // If answer is empty or very short, return low score
-  if (!answer.trim() || answer.trim().length < 10) {
-    return 10;
+  // If answer is empty or very short, return very low score
+  if (!answer.trim() || answer.trim().length < 3) {
+    return 5;
   }
 
   const words = answer.trim().split(/\s+/).filter(word => word.length > 0);
   const wordCount = words.length;
   
+  // ENHANCED: Better gibberish detection
+  const hasGibberish = detectGibberish(answer);
+  if (hasGibberish) {
+    return Math.max(1, Math.min(15, wordCount * 1)); // Max 15% for gibberish
+  }
+
+  // ENHANCED: Test for repeated characters or keyboard mashing
+  const hasRepeatedChars = /(.)\1{4,}/.test(answer); // 5+ repeated characters
+  const hasKeyboardMashing = /(asdf|jkl|qwer|zxcv|fdsa|lkj|rewq|vcxz)/i.test(answer.toLowerCase());
+  
+  if (hasRepeatedChars || hasKeyboardMashing) {
+    return Math.max(1, Math.min(10, wordCount * 0.5)); // Max 10% for keyboard mashing
+  }
+
+  // ENHANCED: Test for single repeated word
+  const uniqueWords = new Set(words.map(word => word.toLowerCase()));
+  if (uniqueWords.size === 1 && wordCount > 2) {
+    return Math.max(5, Math.min(20, wordCount * 2)); // Max 20% for single word repetition
+  }
+
   let score = 0;
   
-  // Length factor (0-25 points)
+  // Length factor (0-25 points) - More strict
   if (wordCount >= 100) score += 25;
-  else if (wordCount >= 70) score += 22;
-  else if (wordCount >= 50) score += 18;
-  else if (wordCount >= 30) score += 14;
-  else if (wordCount >= 15) score += 10;
-  else if (wordCount >= 5) score += 5;
+  else if (wordCount >= 70) score += 20;
+  else if (wordCount >= 50) score += 15;
+  else if (wordCount >= 30) score += 10;
+  else if (wordCount >= 15) score += 5;
+  else if (wordCount >= 5) score += 2;
+  else score += 1; // Very short answers get minimal points
   
-  // Structure factor (0-25 points)
+  // Structure factor (0-20 points)
   const sentenceCount = (answer.match(/[.!?]+/g) || []).length;
-  if (sentenceCount >= 6) score += 25;
-  else if (sentenceCount >= 4) score += 20;
-  else if (sentenceCount >= 3) score += 15;
-  else if (sentenceCount >= 2) score += 10;
-  else if (sentenceCount >= 1) score += 5;
+  if (sentenceCount >= 6) score += 20;
+  else if (sentenceCount >= 4) score += 15;
+  else if (sentenceCount >= 3) score += 10;
+  else if (sentenceCount >= 2) score += 5;
+  else if (sentenceCount >= 1) score += 2;
   
-  // Content quality factors (0-50 points)
-  const hasExamples = /example|for instance|such as|specifically|e\.g/i.test(answer);
-  const hasOutcomes = /result|outcome|achieved|accomplished|saved|improved|increased|reduced/i.test(answer);
-  const hasMetrics = /\d+%|\d+ hours|\d+ dollars|\d+ users|\d+ projects/i.test(answer);
-  const hasStructure = /first|then|next|finally|because|therefore|however/i.test(answer);
+  // Content quality factors (0-40 points) - More strict evaluation
+  const hasExamples = /example|for instance|such as|specifically|e\.g|in my experience|project|work|experience/i.test(answer.toLowerCase());
+  const hasOutcomes = /result|outcome|achieved|accomplished|saved|improved|increased|reduced|solved|completed/i.test(answer.toLowerCase());
+  const hasMetrics = /\d+%|\d+ hours|\d+ dollars|\d+ users|\d+ projects|\d+ years|\d+ months|\$\d+|\d+k/i.test(answer);
+  const hasStructure = /first|then|next|finally|because|therefore|however|although|step|process/i.test(answer.toLowerCase());
+  const hasRelevantKeywords = /team|lead|develop|create|build|manage|implement|design|solve|problem/i.test(answer.toLowerCase());
   
-  if (hasExamples) score += 12;
-  if (hasOutcomes) score += 12;
-  if (hasMetrics) score += 13;
-  if (hasStructure) score += 13;
+  if (hasExamples) score += 10;
+  if (hasOutcomes) score += 10;
+  if (hasMetrics) score += 10;
+  if (hasStructure) score += 5;
+  if (hasRelevantKeywords) score += 5;
   
-  // Question relevance (bonus/malus)
-  const questionKeywords = question.question.toLowerCase().split(/\s+/).filter(word => word.length > 3);
+  // Question relevance (bonus/malus) - More strict
+  const questionKeywords = question.question.toLowerCase()
+    .split(/\s+/)
+    .filter(word => word.length > 3 && !['what','when','where','why','how','tell','describe','explain'].includes(word));
+  
   const relevantKeywords = questionKeywords.filter(keyword => 
     answer.toLowerCase().includes(keyword)
   );
-  const relevanceRatio = relevantKeywords.length / Math.max(1, questionKeywords.length);
-  score += Math.round(relevanceRatio * 20);
   
-  return Math.min(95, Math.max(10, score));
+  const relevanceRatio = relevantKeywords.length / Math.max(1, questionKeywords.length);
+  score += Math.round(relevanceRatio * 15);
+  
+  // ENHANCED: Penalize very poor answers more aggressively
+  if (wordCount < 10) score = Math.min(score, 25);
+  if (wordCount < 5) score = Math.min(score, 15);
+  if (wordCount < 3) score = Math.min(score, 10);
+  
+  return Math.min(95, Math.max(1, score));
 };
 
+// NEW: Enhanced gibberish detection
+const detectGibberish = (text: string): boolean => {
+  if (!text.trim()) return true;
+  
+  const words = text.trim().split(/\s+/);
+  
+  // Single character "words" or very short random strings
+  if (words.every(word => word.length <= 2)) {
+    return true;
+  }
+  
+  // Check for random character sequences without vowels
+  const hasNoVowels = /^[^aeiouyAEIOUY]{4,}$/.test(text.replace(/\s+/g, ''));
+  if (hasNoVowels && text.length > 6) {
+    return true;
+  }
+  
+  // Check for repeated patterns
+  const hasRepeatedPatterns = /(..+)\1{2,}/.test(text); // Repeated sequences
+  if (hasRepeatedPatterns) {
+    return true;
+  }
+  
+  // Check for keyboard walking patterns
+  const keyboardPatterns = [
+    /qwerty|asdfgh|zxcvbn/i,
+    /poiuyt|lkjhgf|mnbvcx/i,
+    /12345|67890/i
+  ];
+  
+  if (keyboardPatterns.some(pattern => pattern.test(text))) {
+    return true;
+  }
+  
+  return false;
+};
 // Enhanced voice scoring - only score if user has actually spoken
-const calculateVoiceScore = (voiceData: VoiceAnalysis, hasUserSpoken: boolean): number => {
-  if (!hasUserSpoken) {
-    return 0; // No voice score if user hasn't spoken
+// Enhanced voice scoring - only score if user has actually spoken
+// FIXED: Realistic voice scoring
+const calculateVoiceScore = (
+  voiceData: VoiceAnalysis, 
+  hasUserSpoken: boolean, 
+  answerLength: number
+): number => {
+  // Return 0 if user hasn't spoken or provided very short/gibberish answer
+  if (!hasUserSpoken || answerLength < 5) {
+    return 0;
+  }
+
+  // Only calculate score if there's significant speech activity AND meaningful content
+  const hasSignificantSpeech = voiceData.volume > 20 && voiceData.confidence > 30;
+  if (!hasSignificantSpeech) {
+    return Math.max(0, (voiceData.confidence * 0.7) + (voiceData.clarity * 0.3));
   }
 
   const weights = {
@@ -1610,24 +1746,46 @@ const calculateVoiceScore = (voiceData: VoiceAnalysis, hasUserSpoken: boolean): 
 };
 
 // Enhanced skill assessment
+// FIXED: Realistic skill assessment
 const generateSkillAssessment = (
   contentScore: number,
   behavioralScore: number,
   voiceScore: number,
-  questionType: string
+  questionType: string,
+  hasUserSpoken?: boolean,
+  hasUserEngaged?: boolean
 ): { [key: string]: number } => {
-  const baseCommunication = Math.round((contentScore * 0.4 + voiceScore * 0.6) * 0.9);
-  const baseConfidence = Math.round((behavioralScore * 0.7 + voiceScore * 0.3) * 0.9);
-  const baseProblemSolving = Math.round(contentScore * (questionType === 'problem-solving' ? 0.95 : 0.8));
-  const baseTechnical = Math.round(contentScore * (questionType === 'technical' ? 0.95 : 0.7));
+  
+  // If content score is very low (gibberish), return minimal scores
+  if (contentScore < 20) {
+    return {
+      'Communication': Math.max(1, contentScore),
+      'Problem Solving': Math.max(1, contentScore / 2),
+      'Technical Knowledge': Math.max(1, contentScore / 2),
+      'Confidence': Math.max(1, behavioralScore / 4),
+      'Professionalism': Math.max(1, behavioralScore / 4),
+      'Algorithms': Math.max(1, contentScore / 3)
+    };
+  }
+  
+  // Only assess communication if user actually spoke and provided meaningful content
+  const baseCommunication = (hasUserSpoken && contentScore > 30) ? 
+    Math.round((contentScore * 0.4 + voiceScore * 0.6) * 0.9) : contentScore;
+  
+  // Only assess confidence if user was engaged and provided meaningful content
+  const baseConfidence = (hasUserEngaged && contentScore > 30) ? 
+    Math.round((behavioralScore * 0.7 + voiceScore * 0.3) * 0.9) : Math.max(10, behavioralScore / 2);
+  
+  const baseProblemSolving = Math.max(1, contentScore * (questionType === 'problem-solving' ? 0.8 : 0.6));
+  const baseTechnical = Math.max(1, contentScore * (questionType === 'technical' ? 0.8 : 0.5));
   
   return {
-    'Communication': Math.max(10, baseCommunication),
-    'Problem Solving': Math.max(10, baseProblemSolving),
-    'Technical Knowledge': Math.max(10, baseTechnical),
-    'Confidence': Math.max(10, baseConfidence),
-    'Professionalism': Math.max(10, behavioralScore * 0.9),
-    'Algorithms': Math.max(0, contentScore * (questionType === 'technical' ? 0.8 : 0.3))
+    'Communication': Math.max(1, baseCommunication),
+    'Problem Solving': Math.max(1, baseProblemSolving),
+    'Technical Knowledge': Math.max(1, baseTechnical),
+    'Confidence': Math.max(1, baseConfidence),
+    'Professionalism': Math.max(1, behavioralScore * 0.7),
+    'Algorithms': Math.max(1, contentScore * (questionType === 'technical' ? 0.6 : 0.3))
   };
 };
 
@@ -1644,21 +1802,31 @@ const getEnhancedRealAnalysis = (
   const hasUserSpoken = answer.trim().length > 0;
   const contentScore = calculateContentScore(answer, question);
   const behavioralScore = behavioralData.score;
-  const voiceScore = calculateVoiceScore(voiceData, hasUserSpoken);
+  // Add these near the top of your component with other state declarations
+ const [hasUserActuallySpoken, setHasUserActuallySpoken] = useState(false);
+ const [currentAnswer, setCurrentAnswer] = useState('');
+const voiceScore = calculateVoiceScore(
+  voiceData, 
+  answer.trim().length > 10, // hasUserSpoken
+  answer.trim().length
+);
 
-  const overallScore = Math.round(
-    (contentScore * 0.5) + 
-    (behavioralScore * 0.3) + 
-    (voiceScore * 0.2)
-  );
+ const overallScore = Math.round(
+  (contentScore * 0.7) + // Content is 70% of score
+  (behavioralScore * 0.2) + // Behavior is 20%
+  (voiceScore * 0.1) // Voice is only 10%
+);
 
-  const skillAssessment = generateSkillAssessment(
-    contentScore,
-    behavioralScore,
-    voiceScore,
-    question.type
-  );
-
+// In analyzeAnswerWithAI function calls, replace with:
+// In analyzeAnswerWithAI function calls, replace with:
+const skillAssessment = generateSkillAssessment(
+  contentScore,
+  behavioralScore,
+  voiceScore,
+  question.type,
+  answer.trim().length > 0, // hasUserSpoken - use the answer parameter
+  behavioralData ? behavioralData.score > 30 : false // hasUserEngaged
+);
   const comprehensiveFeedback = generateComprehensiveFeedback(
     contentScore,
     behavioralScore,
@@ -1760,10 +1928,6 @@ const getEnhancedRealAnalysis = (
     followUpQuestion
   };
 };
-
-// ENHANCED: Improved follow-up question generators with better context awareness
-
-
 // ENHANCED: Improved function to handle user questions to interviewer with better analysis
 const handleUserQuestionToInterviewer = (userQuestion: string, currentQuestion: Question, interviewState: InterviewState): string => {
   const lowerQuestion = userQuestion.toLowerCase();
@@ -1890,10 +2054,10 @@ const generateComprehensiveFeedback = (
   voiceData?: VoiceAnalysis
 ): ComprehensiveFeedback => {
   const overallScore = Math.round(
-    (contentScore * 0.5) + 
-    (behavioralScore * 0.3) + 
-    (voiceScore * 0.2)
-  );
+  (contentScore * 0.7) + // Content is 70% of score
+  (behavioralScore * 0.2) + // Behavior is 20%
+  (voiceScore * 0.1) // Voice is only 10%
+);
 
   const strengths = generateStrengths(contentScore, behavioralScore, voiceScore);
   const improvements = generateImprovements(contentScore, behavioralScore, voiceScore);
@@ -2025,15 +2189,6 @@ const getFallbackVoiceAnalysis = (): VoiceAnalysis => ({
   pauses: 0,
   confidence: 0
 });
-
-// ENHANCED: Improved analyzeAnswerWithAI function with better answer understanding
-// ENHANCED: Improved analyzeAnswerWithAI function with real behavioral and voice analysis
-// CORRECTED: Enhanced analyzeAnswerWithAI function with proper answer analysis and follow-up generation
-// ENHANCED: Improved analyzeAnswerWithAI function with proper answer analysis and follow-up generation
-// REAL AI ANALYSIS: Connect to Groq API for actual answer analysis
-// ENHANCED: Real feedback for ALL questions and proper speech flow
-// ENHANCED: Improved analyzeAnswerWithAI with consistent follow-up questions
-// ENHANCED: Force follow-up questions for most answers
 // FIXED: Enhanced analyzeAnswerWithAI with proper follow-up handling
 const analyzeAnswerWithAI = async (
   question: Question, 
@@ -2091,21 +2246,21 @@ const analyzeAnswerWithAI = async (
       followUpCount,
       answerLength: answer.length
     });
+// In the analyzeAnswerWithAI function, modify the follow-up generation logic:
 
-    // CRITICAL FIX: Only return the follow-up question that was actually generated by AI
-    // Don't force additional follow-ups that break the flow
-    let finalFollowUpQuestion = analysis.followUpQuestion;
-    
-    // Only add forced follow-up if NO follow-up was generated but we really need one
-    if (!finalFollowUpQuestion && shouldAskNaturalFollowUp(question, answer, analysis.score, followUpCount)) {
-      finalFollowUpQuestion = generateNaturalFollowUp(question, answer, analysis.score, followUpCount);
-      console.log('🔄 NATURAL follow-up generation:', finalFollowUpQuestion);
-    }
+// CRITICAL FIX: Only return the follow-up question if we haven't reached max follow-ups
+let finalFollowUpQuestion = analysis.followUpQuestion;
 
-    return {
-      ...analysis,
-      followUpQuestion: finalFollowUpQuestion
-    };
+// Don't generate follow-ups if we've reached the maximum
+if (followUpCount >= MAX_FOLLOW_UPS_PER_QUESTION) {
+  finalFollowUpQuestion = undefined;
+  console.log('🛑 MAX FOLLOW-UPS REACHED - No more follow-ups will be generated');
+}
+
+return {
+  ...analysis,
+  followUpQuestion: finalFollowUpQuestion
+};
 
   } catch (error) {
     console.error('❌ AI analysis error:', error);
@@ -2127,13 +2282,14 @@ const analyzeAnswerWithAI = async (
 
 
 // NEW: Natural follow-up decision making
+// NEW: Natural follow-up decision making
 const shouldAskNaturalFollowUp = (
   question: Question, 
   answer: string, 
   score: number, 
   followUpCount: number
 ): boolean => {
-  // Don't ask follow-ups if we've reached the limit
+  // CRITICAL: Don't ask follow-ups if we've reached the limit
   if (followUpCount >= MAX_FOLLOW_UPS_PER_QUESTION) {
     return false;
   }
@@ -2401,11 +2557,6 @@ const generateContextAwareFollowUp = (
   // Fallback follow-up
   return "Could you expand on that point with more details from your experience?";
 };
-// ENHANCED: Call API for ALL question types
-
-// NEW: Call your actual API route - MAKE SURE THIS FUNCTION EXISTS
-// FIXED: Enhanced API call with better error handling and first question support
-// ENHANCED: Ensure API returns follow-up questions when appropriate
 // In callAnalysisAPI function, replace the follow-up logic:
 const callAnalysisAPI = async (
   question: Question,
@@ -2605,8 +2756,6 @@ const handleUserQuestionWithAPI = async (
 
   return getDefaultUserQuestionResponse(userQuestion, userName);
 };
-
-// Helper function for user question responses - MAKE SURE THIS EXISTS
 // NEW: Call actual Groq API for analysis
 const callAIAnalysisAPI = async (
   question: Question,
@@ -2756,11 +2905,11 @@ const analyzeAnswerContent = async (
   const behavioralScore = behavioralData?.score || 60;
   const voiceScore = voiceData?.confidence || 60;
 
-  const overallScore = Math.round(
-    (contentScore * 0.5) + 
-    (behavioralScore * 0.3) + 
-    (voiceScore * 0.2)
-  );
+const overallScore = Math.round(
+  (contentScore * 0.7) + // Content is 70% of score
+  (behavioralScore * 0.2) + // Behavior is 20%
+  (voiceScore * 0.1) // Voice is only 10%
+);
 
   // Analyze answer quality for specific feedback
   const answerAnalysis = analyzeAnswerQuality(answer, question);
@@ -2774,12 +2923,16 @@ const analyzeAnswerContent = async (
     overallScore
   );
 
-  const skillAssessment = generateSkillAssessment(
-    contentScore,
-    behavioralScore,
-    voiceScore,
-    question.type
-  );
+// In analyzeAnswerWithAI function calls, replace with
+// In analyzeAnswerWithAI function calls, replace with:
+const skillAssessment = generateSkillAssessment(
+  contentScore,
+  behavioralScore,
+  voiceScore,
+  question.type,
+  answer.trim().length > 0, // hasUserSpoken - use the answer parameter
+  behavioralData ? behavioralData.score > 30 : false // hasUserEngaged
+);
 
   const comprehensiveFeedback = generateComprehensiveFeedback(
     contentScore,
@@ -3024,12 +3177,11 @@ const generateContentBasedAnalysis = (
   const behavioralScore = behavioralData.score;
   const voiceScore = voiceData.confidence;
 
-  const overallScore = Math.round(
-    (contentScore * 0.5) + 
-    (behavioralScore * 0.3) + 
-    (voiceScore * 0.2)
-  );
-
+const overallScore = Math.round(
+  (contentScore * 0.7) + // Content is 70% of score
+  (behavioralScore * 0.2) + // Behavior is 20%
+  (voiceScore * 0.1) // Voice is only 10%
+);
   const followUpQuestion = generateContentBasedFollowUp(
     question, 
     answer, 
@@ -3054,7 +3206,13 @@ const generateContentBasedAnalysis = (
     strengths: analysis.strengths,
     improvements: analysis.improvements,
     suggestions: analysis.suggestions,
-    skillAssessment: generateSkillAssessment(contentScore, behavioralScore, voiceScore, question.type),
+    skillAssessment: generateSkillAssessment(
+  contentScore, 
+  behavioralScore, 
+  voiceScore, 
+  question.type,
+  behavioralData ? behavioralData.score > 30 : false // Add this
+),
     detailedFeedback: feedback,
     confidenceLevel: overallScore,
     behavioralAnalysis: behavioralData,
@@ -3080,21 +3238,27 @@ const getEnhancedRealAnalysisWithFollowUps = async (
   const hasUserSpoken = answer.trim().length > 0;
   const contentScore = calculateContentScore(answer, question);
   const behavioralScore = behavioralData.score;
-  const voiceScore = calculateVoiceScore(voiceData, hasUserSpoken);
+const voiceScore = calculateVoiceScore(
+  voiceData, 
+  answer.trim().length > 10, // hasUserSpoken
+  answer.trim().length
+);
+ const overallScore = Math.round(
+  (contentScore * 0.7) + // Content is 70% of score
+  (behavioralScore * 0.2) + // Behavior is 20%
+  (voiceScore * 0.1) // Voice is only 10%
+);
 
-  const overallScore = Math.round(
-    (contentScore * 0.5) + 
-    (behavioralScore * 0.3) + 
-    (voiceScore * 0.2)
-  );
-
-  const skillAssessment = generateSkillAssessment(
-    contentScore,
-    behavioralScore,
-    voiceScore,
-    question.type
-  );
-
+// In analyzeAnswerWithAI function calls, replace with:
+// In analyzeAnswerWithAI function calls, replace with:
+const skillAssessment = generateSkillAssessment(
+  contentScore,
+  behavioralScore,
+  voiceScore,
+  question.type,
+  answer.trim().length > 0, // hasUserSpoken - use the answer parameter
+  behavioralData ? behavioralData.score > 30 : false // hasUserEngaged
+);
   const comprehensiveFeedback = generateComprehensiveFeedback(
     contentScore,
     behavioralScore,
@@ -3210,7 +3374,6 @@ const getEnhancedRealAnalysisWithFollowUps = async (
 
 // ENHANCED: Improved follow-up question generators with better context awareness
 
-
 const generateClarificationFollowUp = (question: Question, answer: string): string => {
   const clarifications = [
     "Let me simplify that question for you. Could you tell me about a time when you faced a similar challenge and how you approached it?",
@@ -3296,7 +3459,10 @@ export default function EnhancedActiveInterviewPage() {
   const [profile, setProfile] = useState<InterviewProfile | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [hasUserActuallySpoken, setHasUserActuallySpoken] = useState(false);
+  
   const [currentAnswer, setCurrentAnswer] = useState('');
+  
   const [answers, setAnswers] = useState<Answer[]>([]);
   const [timeElapsed, setTimeElapsed] = useState(0);
   const [questionTimeLeft, setQuestionTimeLeft] = useState<number | null>(null);
@@ -3310,7 +3476,6 @@ export default function EnhancedActiveInterviewPage() {
   const [interviewPhase, setInterviewPhase] = useState<'intro' | 'main' | 'closing'>('intro');
   const [userName, setUserName] = useState<string>('');
   const [isRecording, setIsRecording] = useState(false);
-
   // ENHANCED: Improved flow management with question chat states
   const [interviewFlow, setInterviewFlow] = useState<
     'welcome' | 
@@ -3417,14 +3582,8 @@ const MAX_FOLLOW_UPS_PER_QUESTION = 3;
   // Maximum of 3 follow-ups
   return followUpCount < 3;
 };
-  // ENHANCED: Improved answer submission with better feedback delivery
-  // ENHANCED: Improved answer submission with better real-time data capture
-// ENHANCED: Improved answer submission with better real-time data capture
-// FIXED: Improved answer submission with proper feedback flow for ALL questions
-// FIXED: Improved answer submission with proper feedback timing for ALL questions
-// FIXED: Realistic interview flow with immediate feedback and quick follow-ups
-// FIXED: Enhanced answer submission with proper question counting
 // FIXED: Enhanced answer submission with proper follow-up flow
+// FIXED: Enhanced answer submission with accurate scoring and TypeScript fixes
 const handleSubmitAnswer = async () => {
   if (!currentAnswer.trim() && recordedChunks.length === 0) {
     alert('Please provide an answer before proceeding');
@@ -3448,61 +3607,113 @@ const handleSubmitAnswer = async () => {
       }
     }
 
+    // ENHANCED: Better gibberish detection for current answer
+    const hasGibberish = detectGibberish(currentAnswer);
+    const wordCount = currentAnswer.trim().split(/\s+/).filter(word => word.length > 0).length;
+    
     // Get real-time analysis data
     const currentAnalysis = realTimeAnalyzer.getCurrentAnalysis();
     
     let behavioralData: BehavioralAnalysis | undefined;
     let voiceData: VoiceAnalysis | undefined;
 
+    // Only analyze behavior if user is engaged and visible
     if (mediaStream && isVideoEnabled && videoRef.current) {
-      behavioralData = await analyzeBehaviorFromVideo(videoRef.current);
+      behavioralData = await analyzeBehaviorFromVideo(videoRef.current, isUserAnswering);
     } else {
-      behavioralData = currentAnalysis.gestures ? {
-        score: Math.round(
-          (currentAnalysis.gestures.eyeContact * 0.25) +
-          (currentAnalysis.gestures.posture * 0.20) +
-          (currentAnalysis.gestures.gestures * 0.15) +
-          (currentAnalysis.gestures.smiling * 0.15) +
-          (currentAnalysis.gestures.attention * 0.25)
-        ),
-        eyeContact: currentAnalysis.gestures.eyeContact,
-        posture: currentAnalysis.gestures.posture,
-        gestures: currentAnalysis.gestures.gestures,
-        facialExpressions: currentAnalysis.gestures.smiling,
-        confidenceLevel: currentAnalysis.gestures.attention,
-        engagement: currentAnalysis.gestures.eyeContact,
-        professionalism: currentAnalysis.gestures.posture,
-        analysis: {
-          gazeDirection: [0.5, 0.5],
-          headPose: [0, 0, 0],
-          smileIntensity: currentAnalysis.gestures.smiling / 100,
-          gestureFrequency: currentAnalysis.gestures.gestures / 100
-        }
-      } : getFallbackBehavioralAnalysis();
+      behavioralData = getFallbackBehavioralAnalysis();
     }
 
-    voiceData = currentAnalysis.voice;
+    // ENHANCED: Force low scores for gibberish answers
+    let contentScore, behavioralScore, voiceScore, overallScore;
 
-    // Get REAL AI analysis immediately
-    const analysis = await analyzeAnswerWithAI(
-      currentQuestion, 
-      currentAnswer, 
-      interviewState,
-      behavioralData,
-      voiceData,
-      userName || '',
-      false,
-      '',
-      interviewState.currentFollowUpCount,
-      mediaStream,
-      isVideoEnabled
+    if (hasGibberish || wordCount < 3) {
+      // FORCE LOW SCORES FOR GIBBERISH
+      contentScore = Math.max(1, Math.min(10, wordCount * 2));
+      behavioralScore = Math.max(1, behavioralData?.score ? behavioralData.score / 4 : 10);
+      voiceScore = 0;
+      overallScore = Math.max(1, Math.round(
+        (contentScore * 0.7) + 
+        (behavioralScore * 0.2) + 
+        (voiceScore * 0.1)
+      ));
+      
+      console.log('🔴 GIBBERISH DETECTED - Forcing low scores:', {
+        answer: currentAnswer,
+        contentScore,
+        overallScore,
+        wordCount
+      });
+    } else {
+      // Normal scoring for legitimate answers
+      if (mediaStream && isMicEnabled) {
+        const answerDuration = Math.max(10, wordCount / 3);
+        voiceData = analyzeVoiceFromAudio(mediaStream, currentAnswer, answerDuration);
+      } else {
+        voiceData = getFallbackVoiceAnalysis();
+      }
+
+      contentScore = calculateContentScore(currentAnswer, currentQuestion);
+      behavioralScore = behavioralData?.score || 10;
+      voiceScore = calculateVoiceScore(voiceData, wordCount > 5, currentAnswer.trim().length);
+
+      overallScore = Math.round(
+        (contentScore * 0.7) + 
+        (behavioralScore * 0.2) + 
+        (voiceScore * 0.1)
+      );
+    }
+
+    const skillAssessment = generateSkillAssessment(
+      contentScore,
+      behavioralScore,
+      voiceScore,
+      currentQuestion.type,
+      wordCount > 3,
+      behavioralData ? behavioralData.score > 30 : false
     );
+
+    // Create analysis object with accurate scores and proper typing
+    const analysis = {
+      score: overallScore,
+      contentScore,
+      behavioralScore,
+      voiceScore,
+      strengths: contentScore > 50 ? ['Attempted to answer'] : ['Willing to participate'],
+      improvements: contentScore < 30 ? ['Provide meaningful responses with specific examples'] : ['Continue developing detailed answers'],
+      suggestions: [
+        "Include specific examples from your experience",
+        "Use concrete metrics when possible",
+        "Explain your thought process clearly"
+      ],
+      skillAssessment,
+      detailedFeedback: contentScore < 20 
+        ? "Your response was very brief and didn't demonstrate understanding of the question. Please provide more detailed answers with specific examples." 
+        : `You scored ${overallScore}% on this question. ${contentScore < 50 ? 'Try to provide more specific examples and detailed explanations.' : 'Good effort on this response.'}`,
+      confidenceLevel: overallScore,
+      behavioralAnalysis: behavioralData,
+      voiceAnalysis: voiceData,
+      comprehensiveFeedback: generateComprehensiveFeedback(
+        contentScore,
+        behavioralScore,
+        voiceScore,
+        { score: contentScore },
+        behavioralData,
+        voiceData
+      ),
+      interviewerResponse: contentScore < 30 
+        ? "Thank you for your attempt. Let me ask a follow-up question to help you provide more detail."
+        : "Thank you for your response. Let me ask a follow-up to better understand your approach.",
+      correctedAnswer: "An improved answer would include specific examples, measurable results, and clear explanations of your thought process.",
+      expectedAnswer: "A strong response demonstrates expertise through specific examples, shows problem-solving methodology, and highlights relevant outcomes.",
+      followUpQuestion: contentScore < 60 ? "Could you provide a specific example to illustrate your experience with this?" : undefined // Use undefined instead of null
+    };
 
     const answer: Answer = {
       questionId: currentQuestion.id,
       answer: currentAnswer,
       timestamp: new Date().toISOString(),
-      score: analysis.score,
+      score: overallScore,
       aiEvaluation: analysis
     };
 
@@ -3512,7 +3723,9 @@ const handleSubmitAnswer = async () => {
 
     const updatedAnswers = [...answers, answer];
     setAnswers(updatedAnswers);
-    setCurrentQuestionScore(analysis.score);
+    
+    // SET CURRENT QUESTION SCORE FOR DISPLAY
+    setCurrentQuestionScore(overallScore);
     
     // Set comprehensive feedback for display
     if (analysis.comprehensiveFeedback) {
@@ -3525,20 +3738,20 @@ const handleSubmitAnswer = async () => {
       return question && !question.isFollowUp;
     }).length;
 
-    // Update interview state
-    const newSkillProficiency = {
-      ...interviewState.skillProficiency,
-      ...analysis.skillAssessment
-    };
-    
+    // FIXED: Update performance score to be average of ALL answers
     const totalScore = updatedAnswers.reduce((acc, ans) => acc + (ans.score || 0), 0);
     const avgScore = updatedAnswers.length > 0 ? Math.round(totalScore / updatedAnswers.length) : 0;
     
-    // Update answeredQuestions with main questions only
+    // Update interview state with accurate performance score
+    const newSkillProficiency = {
+      ...interviewState.skillProficiency,
+      ...skillAssessment
+    };
+
     const newState: InterviewState = {
       ...interviewState,
-      performanceScore: avgScore,
-      answeredQuestions: mainQuestionsAnswered, // Use main questions count
+      performanceScore: avgScore, // This is the AVERAGE of all answers
+      answeredQuestions: mainQuestionsAnswered,
       conversationContext: [
         ...interviewState.conversationContext.slice(-3),
         `Q: ${currentQuestion.question.substring(0, 100)}... A: ${currentAnswer.substring(0, 100)}...`
@@ -3547,85 +3760,69 @@ const handleSubmitAnswer = async () => {
     };
     setInterviewState(newState);
 
+    console.log('📊 SCORING BREAKDOWN:', {
+      currentAnswer: currentAnswer,
+      wordCount: wordCount,
+      hasGibberish: hasGibberish,
+      contentScore: contentScore,
+      overallScore: overallScore,
+      performanceScore: avgScore,
+      answerCount: updatedAnswers.length
+    });
+
     // Check if interview should end using main questions count
     if (shouldEndInterview(mainQuestionsAnswered)) {
       completeInterview(updatedAnswers, newSkillProficiency, avgScore, analysis);
       return;
     }
 
-    // Set BOTH types of feedback
-    setCurrentFeedback(analysis.detailedFeedback); // This is for DISPLAY (assessment feedback)
-    
-    // FIXED: Immediate realistic flow - Show feedback first
+    // Set feedback
+    setCurrentFeedback(analysis.detailedFeedback);
     setInterviewFlow('showing-feedback');
     
     // Set corrected answers for display
     setCurrentCorrectedAnswer(analysis.correctedAnswer);
     setCurrentExpectedAnswer(analysis.expectedAnswer);
 
-    // FIXED: Speak ONLY the interviewer response (natural conversation)
-    console.log('🎯 Interviewer speaking natural response:', analysis.interviewerResponse);
+    // Speak interviewer response
     await speakInterviewerMessage(analysis.interviewerResponse);
 
-    console.log('🔄 Feedback-Followup Sync Check:', {
-  detailedFeedback: analysis.detailedFeedback,
-  followUpQuestion: analysis.followUpQuestion,
-  hasFollowUpInFeedback: analysis.detailedFeedback?.includes(analysis.followUpQuestion || ''),
-  followUpCount: interviewState.currentFollowUpCount
-});
-    // FIXED: CRITICAL - Wait for speech to complete, then check for follow-up
-   // In handleSubmitAnswer, fix the timing for follow-up questions:
-setTimeout(() => {
-  const hasReachedMaxFollowUps = interviewState.currentFollowUpCount >= MAX_FOLLOW_UPS_PER_QUESTION;
-  const shouldAskFollowUpQuestion = analysis.followUpQuestion && !hasReachedMaxFollowUps;
-
-  console.log('🔄 Natural Follow-up Decision:', {
-    hasFollowUp: !!analysis.followUpQuestion,
-    followUpQuestion: analysis.followUpQuestion,
-    currentCount: interviewState.currentFollowUpCount,
-    maxCount: MAX_FOLLOW_UPS_PER_QUESTION,
-    hasReachedMax: hasReachedMaxFollowUps,
-    shouldAsk: shouldAskFollowUpQuestion
-  });
-
-  if (shouldAskFollowUpQuestion) {
-    // Update follow-up count
-    setInterviewState(prev => ({
-      ...prev,
-      currentFollowUpCount: prev.currentFollowUpCount + 1,
-      currentQuestionHasFollowUps: true,
-      currentMainQuestionId: currentQuestion.id
-    }));
-
-    setPendingFollowUpQuestion(analysis.followUpQuestion);
-    setInterviewFlow('asking-followup');
-    setIsUserAnswering(false);
-    
-    // NATURAL FLOW: Wait a moment, then ask the follow-up
+    // Wait for speech to complete, then check for next follow-up
     setTimeout(() => {
-      console.log('🎯 Asking natural follow-up:', analysis.followUpQuestion);
-      speakInterviewerMessage(analysis.followUpQuestion);
-    }, 1500); // Natural pause before follow-up
-  } else {
-    // No follow-up needed, show corrections and proceed
-    setShowCorrectedAnswer(true);
-    setInterviewFlow('showing-corrected-answers');
-    
-    console.log('🎯 No follow-up needed, proceeding to corrections');
-    
-    setTimeout(() => {
-      setInterviewState(prev => ({
-        ...prev,
-        currentFollowUpCount: 0,
-        currentQuestionHasFollowUps: false,
-        currentMainQuestionId: undefined
-      }));
-      
-      // Auto-proceed to next question
-      handleProceedToNextQuestion();
-    }, 3000);
-  }
-}, 2000);
+      const hasReachedMaxFollowUps = interviewState.currentFollowUpCount >= MAX_FOLLOW_UPS_PER_QUESTION;
+      const shouldAskFollowUpQuestion = analysis.followUpQuestion && !hasReachedMaxFollowUps;
+
+      if (shouldAskFollowUpQuestion && analysis.followUpQuestion) {
+        setInterviewState(prev => ({
+          ...prev,
+          currentFollowUpCount: prev.currentFollowUpCount + 1,
+          currentQuestionHasFollowUps: true,
+          currentMainQuestionId: currentQuestion.id
+        }));
+
+        setPendingFollowUpQuestion(analysis.followUpQuestion);
+        setInterviewFlow('asking-followup');
+        setIsUserAnswering(false);
+        
+        setTimeout(() => {
+          speakInterviewerMessage(analysis.followUpQuestion!);
+        }, 1500);
+      } else {
+        setShowCorrectedAnswer(true);
+        setInterviewFlow('showing-corrected-answers');
+        
+        setTimeout(() => {
+          setInterviewState(prev => ({
+            ...prev,
+            currentFollowUpCount: 0,
+            currentQuestionHasFollowUps: false,
+            currentMainQuestionId: undefined
+          }));
+          
+          handleProceedToNextQuestion();
+        }, 30000);
+      }
+    }, 2000);
   } catch (error) {
     console.error('Error processing answer:', error);
     setError(`Error processing answer: ${error}`);
@@ -3634,18 +3831,14 @@ setTimeout(() => {
     setIsAnalyzing(false);
   }
 };
-
-
 // Add this function to make the flow more natural
 const getRealisticFlowTiming = (message: string): number => {
   const wordCount = message.split(' ').length;
   const baseTime = Math.max(1500, (wordCount / 3) * 1000); // Realistic speaking pace
   return Math.min(baseTime, 5000); // Cap at 5 seconds max
 };
-// FIXED: Realistic follow-up answer handling
-// FIXED: Realistic follow-up answer handling
-// FIXED: Enhanced follow-up answer handling with proper flow
 // FIXED: Enhanced follow-up answer handling with automatic progression
+// FIXED: Enhanced follow-up answer handling with automatic progression after 3 follow-ups
 const handleFollowUpAnswer = async () => {
   if (!currentAnswer.trim() && recordedChunks.length === 0) {
     alert('Please provide an answer to the follow-up question');
@@ -3656,6 +3849,10 @@ const handleFollowUpAnswer = async () => {
   setIsAnalyzing(true);
 
   try {
+    // Check if user actually spoke - use the existing answer length as indicator
+    const hasUserActuallySpoken = currentAnswer.trim().length > 10;
+    const userEngagementLevel = realTimeAnalyzer.getUserEngagementLevel ? realTimeAnalyzer.getUserEngagementLevel() : 0;
+
     const followUpQuestion: Question = {
       id: `followup-${Date.now()}`,
       question: pendingFollowUpQuestion || 'Could you elaborate on that?',
@@ -3675,13 +3872,25 @@ const handleFollowUpAnswer = async () => {
     let behavioralData: BehavioralAnalysis | undefined;
     let voiceData: VoiceAnalysis | undefined;
 
-    if (mediaStream && isVideoEnabled && videoRef.current) {
-      behavioralData = await analyzeBehaviorFromVideo(videoRef.current);
+    if (mediaStream && isVideoEnabled && videoRef.current && userEngagementLevel > 20) {
+      behavioralData = await analyzeBehaviorFromVideo(videoRef.current, isUserAnswering);
+    } else {
+      behavioralData = getFallbackBehavioralAnalysis();
     }
 
-    if (mediaStream && isMicEnabled) {
+    if (hasUserActuallySpoken && mediaStream && isMicEnabled) {
       const answerDuration = Math.max(10, currentAnswer.split(/\s+/).length / 3);
       voiceData = analyzeVoiceFromAudio(mediaStream, currentAnswer, answerDuration);
+    } else {
+      voiceData = {
+        volume: 0,
+        clarity: 0,
+        pace: 0,
+        tone: 0,
+        fillerWords: 0,
+        pauses: 0,
+        confidence: 0
+      };
     }
 
     // Get REAL AI analysis for follow-up
@@ -3699,12 +3908,38 @@ const handleFollowUpAnswer = async () => {
       isVideoEnabled
     );
 
+    // Calculate scores for display
+    const contentScore = calculateContentScore(currentAnswer, followUpQuestion);
+    const behavioralScore = behavioralData.score;
+    const voiceScore = calculateVoiceScore(voiceData, hasUserActuallySpoken, currentAnswer.trim().length);
+
+    const overallScore = Math.round(
+      (contentScore * 0.7) + // Content is 70% of score
+      (behavioralScore * 0.2) + // Behavior is 20%
+      (voiceScore * 0.1) // Voice is only 10%
+    );
+
+    const skillAssessment = generateSkillAssessment(
+      contentScore,
+      behavioralScore,
+      voiceScore,
+      followUpQuestion.type,
+      currentAnswer.trim().length > 0,
+      behavioralData ? behavioralData.score > 30 : false
+    );
+
     const answer: Answer = {
       questionId: followUpQuestion.id,
       answer: currentAnswer,
       timestamp: new Date().toISOString(),
       score: analysis.score,
-      aiEvaluation: analysis
+      aiEvaluation: {
+        ...analysis,
+        contentScore,
+        behavioralScore,
+        voiceScore,
+        skillAssessment
+      }
     };
 
     const updatedAnswers = [...answers, answer];
@@ -3718,7 +3953,7 @@ const handleFollowUpAnswer = async () => {
 
     const newSkillProficiency = {
       ...interviewState.skillProficiency,
-      ...analysis.skillAssessment
+      ...skillAssessment
     };
     
     const totalScore = updatedAnswers.reduce((acc, ans) => acc + (ans.score || 0), 0);
@@ -3754,17 +3989,31 @@ const handleFollowUpAnswer = async () => {
     // Wait for speech to complete, then check for next follow-up
     setTimeout(() => {
       const hasReachedMaxFollowUps = interviewState.currentFollowUpCount >= MAX_FOLLOW_UPS_PER_QUESTION;
-      const shouldContinueFollowUp = analysis.followUpQuestion && !hasReachedMaxFollowUps;
-
-      console.log('🔄 Continue Follow-up Decision:', {
-        hasFollowUp: !!analysis.followUpQuestion,
-        currentCount: interviewState.currentFollowUpCount,
-        maxCount: MAX_FOLLOW_UPS_PER_QUESTION,
-        hasReachedMax: hasReachedMaxFollowUps,
-        shouldContinue: shouldContinueFollowUp
-      });
-
-      if (shouldContinueFollowUp) {
+      
+      // CRITICAL FIX: After 3 follow-ups, show feedback and move to next question
+      if (hasReachedMaxFollowUps) {
+        console.log('🎯 MAX FOLLOW-UPS REACHED - Moving to next question');
+        
+        // Show comprehensive feedback for the final follow-up
+        setShowCorrectedAnswer(true);
+        setInterviewFlow('showing-corrected-answers');
+        
+        // Auto-proceed to next question after showing feedback
+        setTimeout(() => {
+          // Reset follow-up state and auto-proceed
+          setInterviewState(prev => ({
+            ...prev,
+            currentFollowUpCount: 0,
+            currentQuestionHasFollowUps: false,
+            currentMainQuestionId: undefined
+          }));
+          
+          // Auto-proceed to next question
+          handleProceedToNextQuestion();
+        }, 25000); // Show feedback for 25 seconds then move on
+      } 
+      // Ask next follow-up if we haven't reached max
+      else if (analysis.followUpQuestion) {
         // Update follow-up count and ask next follow-up
         setInterviewState(prev => ({
           ...prev,
@@ -3778,13 +4027,11 @@ const handleFollowUpAnswer = async () => {
         setTimeout(() => {
           speakInterviewerMessage(analysis.followUpQuestion || '');
         }, 1000);
-      } else {
-        // CRITICAL FIX: Auto-proceed to next question after max follow-ups
-        // Show corrections briefly, then automatically move to next question
+      } 
+      // No more follow-ups but haven't reached max - move to next question
+      else {
         setShowCorrectedAnswer(true);
         setInterviewFlow('showing-corrected-answers');
-        
-        console.log('🎯 Auto-proceeding to next question after follow-ups');
         
         setTimeout(() => {
           // Reset follow-up state and auto-proceed
@@ -3795,9 +4042,9 @@ const handleFollowUpAnswer = async () => {
             currentMainQuestionId: undefined
           }));
           
-          // Auto-proceed to next question without showing "Next Question" prompt
+          // Auto-proceed to next question
           handleProceedToNextQuestion();
-        }, 2000); // Reduced from 3000 to 2000 for faster flow
+        }, 25000);
       }
     }, 2000);
 
@@ -3809,17 +4056,6 @@ const handleFollowUpAnswer = async () => {
     setIsAnalyzing(false);
   }
 };
-// FIXED: Improved follow-up answer submission with complete feedback delivery
-
-
-  // ENHANCED: Improved follow-up answer submission with voice feedback
- // ENHANCED: Improved follow-up answer submission with voice feedback
-
-
-
-  
-
-  // ENHANCED: Improved user question handling with resume functionality
  // ENHANCED: Improved user question handling with resume functionality
 const handleUserQuestion = async (userQuestion: string) => {
   if (!userQuestion.trim()) return;
@@ -3842,7 +4078,7 @@ const handleUserQuestion = async (userQuestion: string) => {
 
     // Analyze behavior from video if available
     if (mediaStream && isVideoEnabled && videoRef.current) {
-      behavioralData = await analyzeBehaviorFromVideo(videoRef.current);
+    behavioralData = await analyzeBehaviorFromVideo(videoRef.current, isUserAnswering);
     }
 
     // Analyze voice from audio stream
@@ -3909,7 +4145,6 @@ const handleUserQuestion = async (userQuestion: string) => {
     setIsAnalyzing(false);
   }
 };
-  // ENHANCED: Resume interview function
  // ENHANCED: Resume interview function
   const handleResumeInterview = () => {
     setIsQuestionChatActive(false);
@@ -4013,9 +4248,6 @@ const handleUserQuestion = async (userQuestion: string) => {
       handleProceedToNextQuestion();
     }, 1000);
   };
-
-
-
   // Add this useEffect to load MediaPipe scripts dynamically
 useEffect(() => {
   const loadMediaPipeScripts = async () => {
@@ -4078,9 +4310,6 @@ useEffect(() => {
       realTimeAnalyzer.stopAnalysis();
     };
   }, []);
-
-  // Start real-time analysis when media is available
-  // In your useEffect for real-time analysis, replace with this:
 // FIXED: Start real-time analysis when media is ready
 useEffect(() => {
   if (mediaStream && interviewStarted) {
@@ -4106,9 +4335,6 @@ useEffect(() => {
   }
 }, [mediaStream, interviewStarted]);
 
-  // Enhanced speech recognition to update voice metrics
-  // Fix speech recognition in your useEffect
-// Add this useEffect for speech recognition
 // FIXED: Speech recognition with proper initialization
 useEffect(() => {
   if (typeof window !== 'undefined') {
@@ -4205,12 +4431,6 @@ const toggleSpeechRecognition = () => {
     setIsSpeechRecognitionActive(false);
   }
 };
-
-// Fixed toggle function
-
-
-// Fixed toggle function
-
   // Effect to detect when user starts typing
   useEffect(() => {
     if (!isUserAnswering && currentAnswer.trim().length > 0) {
@@ -4228,8 +4448,6 @@ const toggleSpeechRecognition = () => {
       setIsUserAnswering(false);
     }
   }, [interviewFlow, currentQuestionIndex, isInterviewerSpeaking]);
-
-  // Toggle speech recognition
 
   // Load interview data from localStorage - FIXED: Proper question initialization
   useEffect(() => {
@@ -4310,10 +4528,6 @@ const toggleSpeechRecognition = () => {
     loadInterviewData();
   }, []);
 
-
-
-
-  // Interview flow initialization - FIXED: Proper welcome flow
  // FIXED: Improved welcome flow with proper timing
 useEffect(() => {
   if (interviewStarted && questions.length > 0 && !hasWelcomed && !isInterviewerSpeaking) {
@@ -4346,13 +4560,6 @@ useEffect(() => {
   }
 }, [interviewStarted, questions, currentQuestionIndex, hasWelcomed, isInterviewerSpeaking]);
 
-
-
-
-  // ENHANCED: Improved interviewer speaking with better timing
-  // ENHANCED: Improved speech function that speaks ALL content
-// FIXED: Improved speech function with proper timing
-// FIXED: Improved speech function with proper completion detection
 // Improved immediate speech function
 const speakInterviewerMessage = async (message: string): Promise<void> => {
   if (!isSpeakerEnabled) return;
@@ -4386,7 +4593,6 @@ const speakInterviewerMessage = async (message: string): Promise<void> => {
     }
   });
 };
-  // Generate initial questions based on profile - FIXED: Start from proper question 1
   // FIXED: Enhanced initial question generation to ensure enough questions
 const generateInitialQuestions = (profileData: InterviewProfile): Question[] => {
   const introQuestions: Question[] = [
@@ -4489,8 +4695,6 @@ const generateInitialQuestions = (profileData: InterviewProfile): Question[] => 
   return allQuestions.slice(0, 12); // Start with 12 questions to be safe
 };
 
-// FIXED: Add assessment type detection function
-
   // Extract user name from introduction answer
   const extractUserName = (answer: string): string => {
     const patterns = [
@@ -4512,7 +4716,6 @@ const generateInitialQuestions = (profileData: InterviewProfile): Question[] => 
     return '';
   };
 
-  // Check if interview should end - FIXED: Proper end condition
   // FIXED: Improved interview completion logic
 const shouldEndInterview = (currentMainQuestionsCount: number): boolean => {
   // Only end when we've reached the maximum main questions
@@ -4523,10 +4726,6 @@ const shouldEndInterview = (currentMainQuestionsCount: number): boolean => {
   // Don't end early based on score - complete all questions
   return false;
 };
-
-  // Proceed to next question - FIXED: Proper question progression
-// In handleProceedToNextQuestion, fix the question flow:
-// FIXED: Improved next question flow with proper state reset
 // FIXED: Enhanced proceed to next question with proper flow
 const handleProceedToNextQuestion = async () => {
   // Reset all answer-related states
@@ -4626,7 +4825,6 @@ const handleProceedToNextQuestion = async () => {
     completeInterview(answers, interviewState.skillProficiency, interviewState.performanceScore, answers[answers.length - 1]?.aiEvaluation);
   }
 };
-  // Generate dynamic next question
   // REPLACE your generateDynamicNextQuestion function:
 const generateDynamicNextQuestion = async (): Promise<Question | null> => {
   if (!isDynamicMode) return null;
@@ -4726,9 +4924,6 @@ if (error instanceof Error && error.name === 'TimeoutError') {      console.warn
       skillFocus: [followUpSkill]
     };
   };
-
-  // Complete interview function
-  // FIXED: Enhanced completeInterview function with proper data structure
 // FIXED: Enhanced completeInterview with formal closing
 const completeInterview = (
   updatedAnswers: Answer[], 
@@ -4808,11 +5003,6 @@ ${avgScore >= 80 ? '🎯 Outstanding performance! You demonstrated excellent kno
 Thank you for participating in the Talkgenious AI assessment! Your results have been saved to your dashboard.`);
   }, 4000);
 };
-
-// FIXED: Improved follow-up question generation with better logic
-
-
-// FIXED: Add assessment type detection function
 // FIXED: Enhanced assessment type detection
 const detectAssessmentTypeFromProfile = (profile: InterviewProfile | null): string => {
   if (!profile) return 'interview';
@@ -4845,8 +5035,6 @@ const detectAssessmentTypeFromProfile = (profile: InterviewProfile | null): stri
   
   return 'interview'; // default
 };
-
-  // Fixed media initialization with better error handling
   // FIXED: Media initialization with better audio handling
 const initializeMedia = async () => {
   try {
@@ -4989,28 +5177,35 @@ const initializeMedia = async () => {
       setIsRecording(false);
     }
   };
-
-  // Timer effect
-  useEffect(() => {
-    if (!interviewStarted || interviewFlow !== 'waiting-for-answer') return;
-
-    const timer = setInterval(() => {
-      setTimeElapsed(prev => prev + 1);
-      if (questionTimeLeft !== null && questionTimeLeft > 0) {
+  // FIXED: Accurate time tracking
+useEffect(() => {
+  let interval: NodeJS.Timeout;
+  
+  if (interviewStarted && !interviewCompleted) {
+    const startTime = Date.now();
+    
+    interval = setInterval(() => {
+      const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
+      setTimeElapsed(elapsedSeconds);
+      
+      // Only count down question time when user is answering
+      if (interviewFlow === 'waiting-for-answer' && questionTimeLeft !== null && questionTimeLeft > 0) {
         setQuestionTimeLeft(prev => prev !== null ? prev - 1 : null);
-      } else if (questionTimeLeft === 0) {
-        if (currentAnswer.trim() || recordedChunks.length > 0) {
-          if (pendingFollowUpQuestion) {
-            handleFollowUpAnswer();
-          } else {
-            handleSubmitAnswer();
-          }
+      } else if (questionTimeLeft === 0 && (currentAnswer.trim() || recordedChunks.length > 0)) {
+        // Auto-submit when time runs out
+        if (pendingFollowUpQuestion) {
+          handleFollowUpAnswer();
+        } else {
+          handleSubmitAnswer();
         }
       }
     }, 1000);
+  }
 
-    return () => clearInterval(timer);
-  }, [interviewStarted, questionTimeLeft, currentAnswer, interviewFlow, pendingFollowUpQuestion]);
+  return () => {
+    if (interval) clearInterval(interval);
+  };
+}, [interviewStarted, interviewCompleted, interviewFlow, questionTimeLeft, currentAnswer, pendingFollowUpQuestion]);
 
   // Initialize media when component mounts
   useEffect(() => {
@@ -5042,8 +5237,7 @@ const initializeMedia = async () => {
   const getAssessmentDisplayName = () => {
     return 'TalkGenius AI Roleplay Assessment Platform ';
   };
-// NEW: Real-time Analysis Display Component
-// Simplified Real-time Analysis Display
+// FIXED: Real-time analysis display with accurate values
 const RealTimeAnalysisDisplay = ({ 
   isVisible,
   gestureAnalysis,
@@ -5055,11 +5249,19 @@ const RealTimeAnalysisDisplay = ({
 }) => {
   if (!isVisible) return null;
 
+  const hasActualVoiceData = voiceAnalysis && voiceAnalysis.volume > 15 && voiceAnalysis.confidence > 20;
+  const hasActualGestureData = gestureAnalysis && gestureAnalysis.attention > 25;
+
   return (
     <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-l-4 border-blue-400 p-4 mb-4 rounded-lg">
       <h4 className="text-blue-800 font-medium mb-3 text-sm flex items-center gap-2">
         <RefreshCw className="h-4 w-4" />
         Real-time Analysis
+        {(!hasActualVoiceData || !hasActualGestureData) && (
+          <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">
+            Waiting for input...
+          </span>
+        )}
       </h4>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -5068,48 +5270,31 @@ const RealTimeAnalysisDisplay = ({
           <h5 className="text-blue-700 font-medium mb-2 text-xs flex items-center gap-1">
             <Volume2 className="h-3 w-3" />
             Voice Analysis
+            {!hasActualVoiceData && (
+              <span className="text-xs text-gray-600 ml-1">(Speak to see analysis)</span>
+            )}
           </h5>
           <div className="space-y-2 text-xs">
-            <div className="flex justify-between">
-              <span>Volume:</span>
-              <div className="flex items-center gap-2">
-                <span className="font-medium">{voiceAnalysis ? Math.round(voiceAnalysis.volume) : 0}%</span>
-                <div className="w-16 bg-gray-200 rounded-full h-2">
-                  <div 
-                    className="h-2 rounded-full bg-green-500 transition-all"
-                    style={{ width: `${voiceAnalysis?.volume || 0}%` }}
-                  ></div>
+            {[
+              { label: 'Volume', value: voiceAnalysis?.volume || 0, color: 'bg-green-500' },
+              { label: 'Clarity', value: voiceAnalysis?.clarity || 0, color: 'bg-blue-500' },
+              { label: 'Confidence', value: voiceAnalysis?.confidence || 0, color: 'bg-purple-500' }
+            ].map(({ label, value, color }) => (
+              <div key={label} className="flex justify-between">
+                <span>{label}:</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-medium w-12 text-right">
+                    {Math.round(value)}%
+                  </span>
+                  <div className="w-16 bg-gray-200 rounded-full h-2">
+                    <div 
+                      className={`h-2 rounded-full transition-all ${color}`}
+                      style={{ width: `${Math.min(100, value)}%` }}
+                    ></div>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className="flex justify-between">
-              <span>Clarity:</span>
-              <div className="flex items-center gap-2">
-                <span className="font-medium">{voiceAnalysis ? Math.round(voiceAnalysis.clarity) : 0}%</span>
-                <div className="w-16 bg-gray-200 rounded-full h-2">
-                  <div 
-                    className="h-2 rounded-full bg-blue-500 transition-all"
-                    style={{ width: `${voiceAnalysis?.clarity || 0}%` }}
-                  ></div>
-                </div>
-              </div>
-            </div>
-            <div className="flex justify-between">
-              <span>Pace:</span>
-              <span className="font-medium">{voiceAnalysis ? Math.round(voiceAnalysis.pace) : 0} wpm</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Confidence:</span>
-              <div className="flex items-center gap-2">
-                <span className="font-medium">{voiceAnalysis ? Math.round(voiceAnalysis.confidence) : 0}%</span>
-                <div className="w-16 bg-gray-200 rounded-full h-2">
-                  <div 
-                    className="h-2 rounded-full bg-purple-500 transition-all"
-                    style={{ width: `${voiceAnalysis?.confidence || 0}%` }}
-                  ></div>
-                </div>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
 
@@ -5118,46 +5303,41 @@ const RealTimeAnalysisDisplay = ({
           <h5 className="text-purple-700 font-medium mb-2 text-xs flex items-center gap-1">
             <User className="h-3 w-3" />
             Behavior Analysis
+            {!hasActualGestureData && (
+              <span className="text-xs text-gray-600 ml-1">(Be visible for analysis)</span>
+            )}
           </h5>
           <div className="space-y-2 text-xs">
-            <div className="flex justify-between">
-              <span>Eye Contact:</span>
-              <div className="flex items-center gap-2">
-                <span className="font-medium">{gestureAnalysis ? Math.round(gestureAnalysis.eyeContact) : 0}%</span>
-                <div className="w-16 bg-gray-200 rounded-full h-2">
-                  <div 
-                    className="h-2 rounded-full bg-green-500 transition-all"
-                    style={{ width: `${gestureAnalysis?.eyeContact || 0}%` }}
-                  ></div>
+            {[
+              { label: 'Eye Contact', value: gestureAnalysis?.eyeContact || 0, color: 'bg-green-500' },
+              { label: 'Posture', value: gestureAnalysis?.posture || 0, color: 'bg-blue-500' },
+              { label: 'Attention', value: gestureAnalysis?.attention || 0, color: 'bg-purple-500' }
+            ].map(({ label, value, color }) => (
+              <div key={label} className="flex justify-between">
+                <span>{label}:</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-medium w-12 text-right">{Math.round(value)}%</span>
+                  <div className="w-16 bg-gray-200 rounded-full h-2">
+                    <div 
+                      className={`h-2 rounded-full transition-all ${color}`}
+                      style={{ width: `${Math.min(100, value)}%` }}
+                    ></div>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className="flex justify-between">
-              <span>Posture:</span>
-              <div className="flex items-center gap-2">
-                <span className="font-medium">{gestureAnalysis ? Math.round(gestureAnalysis.posture) : 0}%</span>
-                <div className="w-16 bg-gray-200 rounded-full h-2">
-                  <div 
-                    className="h-2 rounded-full bg-blue-500 transition-all"
-                    style={{ width: `${gestureAnalysis?.posture || 0}%` }}
-                  ></div>
-                </div>
-              </div>
-            </div>
-            <div className="flex justify-between">
-              <span>Attention:</span>
-              <div className="flex items-center gap-2">
-                <span className="font-medium">{gestureAnalysis ? Math.round(gestureAnalysis.attention) : 0}%</span>
-                <div className="w-16 bg-gray-200 rounded-full h-2">
-                  <div 
-                    className="h-2 rounded-full bg-purple-500 transition-all"
-                    style={{ width: `${gestureAnalysis?.attention || 0}%` }}
-                  ></div>
-                </div>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
+      </div>
+      
+      {/* Status Indicator */}
+      <div className="mt-3 text-xs text-center text-gray-600">
+        {!hasActualVoiceData && !hasActualGestureData ? 
+          "Start speaking and ensure you're visible for analysis" :
+          hasActualVoiceData && !hasActualGestureData ?
+          "Voice detected! Ensure you're visible for behavior analysis" :
+          "Analysis active - keep speaking naturally"
+        }
       </div>
     </div>
   );
@@ -5609,8 +5789,13 @@ const RealTimeAnalysisDisplay = ({
         <h4 className="text-green-800 font-medium mb-2">Assessment Feedback</h4>
         <p className="text-green-700">{currentFeedback}</p>
         
-        {/* Show the follow-up question prominently if it exists */}
         {/* Alternative: Get analysis from the latest answer */}
+{answers.length > 0 && answers[answers.length - 1]?.aiEvaluation?.followUpQuestion && (
+  <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded">
+    <div className="flex items-center gap-2 text-yellow-800 text-sm font-medium mb-1">
+      <MessageSquare className="h-4 w-4" />
+    </div>
+    <p className="text-yellow-700 text-sm">
 {answers.length > 0 && answers[answers.length - 1]?.aiEvaluation?.followUpQuestion && (
   <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded">
     <div className="flex items-center gap-2 text-yellow-800 text-sm font-medium mb-1">
@@ -5618,7 +5803,10 @@ const RealTimeAnalysisDisplay = ({
       Follow-up Question:
     </div>
     <p className="text-yellow-700 text-sm">
-      {answers[answers.length - 1].aiEvaluation.followUpQuestion}
+      {answers[answers.length - 1]?.aiEvaluation?.followUpQuestion || ''}
+    </p>
+  </div>
+)}
     </p>
   </div>
 )}
@@ -5634,14 +5822,13 @@ const RealTimeAnalysisDisplay = ({
 )}
 
               {/* Corrected Answer Display */}
-              <CorrectedAnswerDisplay 
-                correctedAnswer={currentCorrectedAnswer}
-                expectedAnswer={currentExpectedAnswer}
-                isVisible={showCorrectedAnswer}
-                onClose={() => setShowCorrectedAnswer(false)}
-              />
-
-
+<CorrectedAnswerDisplay 
+  correctedAnswer={currentCorrectedAnswer}
+  expectedAnswer={currentExpectedAnswer}
+  isVisible={showCorrectedAnswer}
+  onClose={() => setShowCorrectedAnswer(false)}
+  autoCloseDelay={30000} // 30 seconds
+/>
 
               {/* Answer Input Section for Regular Questions */}
               {(interviewFlow === 'waiting-for-answer' && !pendingFollowUpQuestion && !isQuestionChatActive && !showUserQuestionInput) && (  // ← ADDED: !showUserQuestionInput
@@ -5750,7 +5937,6 @@ const RealTimeAnalysisDisplay = ({
               )}
 
               {/* Current Question Display */}
-              {/* Current Question Display */}
 {currentQuestion && (interviewFlow === 'waiting-for-answer' || interviewFlow === 'question-asked') && !showUserQuestionInput && (
   <div className="bg-gray-50 border-l-4 border-blue-400 p-4 rounded">
     <h3 className="text-lg font-semibold text-gray-800 mb-2 flex items-center gap-2">
@@ -5851,15 +6037,6 @@ const RealTimeAnalysisDisplay = ({
                 }
               </div>
             </div>
-            
-            {/* Comprehensive Feedback Display */}
-              {comprehensiveFeedback && (
-                <ComprehensiveFeedbackDisplay 
-                  feedback={comprehensiveFeedback}
-                  isVisible={true}
-                  onClose={() => setComprehensiveFeedback(null)}
-                />
-              )}
 
             {/* Interview Flow Status */}
             <div className="bg-gradient-to-br from-purple-100 to-blue-100 rounded-lg shadow-lg p-6 border border-purple-200">
