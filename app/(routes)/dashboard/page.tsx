@@ -840,9 +840,6 @@ const calculateWeeklyProgress = (history: InterviewHistory[]): number => {
                     View Latest Results
                   </button>
                 )}
-                <button className="w-full bg-transparent border border-white text-white py-2 rounded-lg font-medium hover:bg-white hover:bg-opacity-10 transition-colors">
-                  Download All Reports
-                </button>
               </div>
             </div>
 

@@ -15,7 +15,7 @@ const Button = ({ children, onClick, disabled, className, ...props }: any) => (
     {children}
   </button>
 );
-
+const MAX_MAIN_QUESTIONS = 10;
 interface Question {
   id: string;
   question: string;
@@ -346,13 +346,15 @@ export default function InterviewStartPage() {
               <h4 className="text-gray-700 font-semibold mb-3">Session Statistics</h4>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Total Questions:</span>
-                  <span className="font-semibold">{interviewSession.questions.length}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Estimated Duration:</span>
-                  <span className="font-semibold">{Math.round(interviewSession.questions.length * 3.5)} minutes</span>
-                </div>
+                  <div className="flex justify-between">
+  <span className="text-gray-600">Total Questions:</span>
+  <span className="font-semibold">{MAX_MAIN_QUESTIONS} main questions</span>
+</div>
+<div className="flex justify-between">
+  <span className="text-gray-600">Estimated Duration:</span>
+  <span className="font-semibold">{Math.round(MAX_MAIN_QUESTIONS * 3.5)} minutes</span>
+</div>
+</div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Field-Specific:</span>
                   <span className="font-semibold text-green-600">
