@@ -205,10 +205,79 @@ interface GestureAnalysis {
   attention: number;
   gestures: number;
 }
+
+// Add proper MediaPipe type declarations
+declare global {
+  interface Window {
+    FaceMesh: any;
+    Pose: any;
+    Hands: any;
+    camera: any;
+    drawConnectors: any;
+    drawLandmarks: any;
+  }
+}
+
+// Enhanced Types for Real Analysis
+interface GestureAnalysis {
+  eyeContact: number;
+  posture: number;
+  headMovement: number;
+  smiling: number;
+  attention: number;
+  gestures: number;
+}
+
+interface VoiceAnalysis {
+  volume: number;
+  clarity: number;
+  pace: number;
+  tone: number;
+  fillerWords: number;
+  pauses: number;
+  confidence: number;
+}
+
+interface BehavioralAnalysis {
+  score: number;
+  eyeContact: number;
+  posture: number;
+  gestures: number;
+  facialExpressions: number;
+  confidenceLevel: number;
+  engagement: number;
+  professionalism: number;
+  analysis: {
+    gazeDirection: number[];
+    headPose: number[];
+    smileIntensity: number;
+    gestureFrequency: number;
+  };
+}
 // Simplified and Robust RealTimeAnalyzer
+// Enhanced RealTimeAnalyzer with MediaPipe
+// Enhanced RealTimeAnalyzer with MediaPipe - CORRECTED VERSION
 class RealTimeAnalyzer {
+  private faceMesh: any = null;
+  private pose: any = null;
+  private hands: any = null;
   private isInitialized = false;
   private analysisInterval: NodeJS.Timeout | null = null;
+  
+  // MediaPipe elements
+  private canvas: HTMLCanvasElement | null = null;
+  private canvasCtx: CanvasRenderingContext2D | null = null;
+  
+  // Audio analysis components - ADD THESE MISSING PROPERTIES
+  private audioContext: AudioContext | null = null;
+  private analyzer: AnalyserNode | null = null;
+  private isAudioContextClosed = false;
+  private hasUserSpoken: boolean = false;
+  private wordCount: number = 0;
+  private speechStartTime: number = 0;
+  private mediaStream: MediaStream | null = null;
+
+  // Data storage - ADD THESE MISSING PROPERTIES
   private gestureData: GestureAnalysis = {
     eyeContact: 50,
     posture: 60,
@@ -217,6 +286,7 @@ class RealTimeAnalyzer {
     attention: 70,
     gestures: 35
   };
+
   private voiceData: VoiceAnalysis = {
     volume: 0,
     clarity: 0,
@@ -226,74 +296,280 @@ class RealTimeAnalyzer {
     pauses: 0,
     confidence: 0
   };
-  
-  // Audio analysis components
-  private audioContext: AudioContext | null = null;
-  private analyzer: AnalyserNode | null = null;
-  private isAudioContextClosed = false;
-  private hasUserSpoken: boolean = false;
-  private wordCount: number = 0;
-  private speechStartTime: number = 0;
-  private mediaStream: MediaStream | null = null;
 
   async initialize() {
     try {
-      console.log('🎯 Initializing RealTimeAnalyzer (simplified version)');
+      console.log('🎯 Initializing MediaPipe RealTimeAnalyzer');
+      
+      // Load MediaPipe scripts dynamically
+      await this.loadMediaPipeScripts();
+      
+      // Initialize MediaPipe solutions
+      await this.initializeMediaPipe();
+      
       this.isInitialized = true;
       return true;
     } catch (error) {
-      console.error('Error initializing analyzer:', error);
-      this.isInitialized = true; // Still mark as initialized for basic analysis
+      console.error('Error initializing MediaPipe analyzer:', error);
       return false;
     }
   }
 
-  // Simple video analysis without MediaPipe
+  private async loadMediaPipeScripts() {
+    const scripts = [
+      'https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js',
+      'https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js',
+      'https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js',
+      'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js',
+      'https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js',
+      'https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js'
+    ];
+
+    for (const src of scripts) {
+      await new Promise((resolve, reject) => {
+        if (document.querySelector(`script[src="${src}"]`)) {
+          resolve(true);
+          return;
+        }
+        const script = document.createElement('script');
+        script.src = src;
+        script.onload = resolve;
+        script.onerror = () => {
+          console.warn(`Failed to load script: ${src}`);
+          resolve(true); // Continue even if one script fails
+        };
+        document.head.appendChild(script);
+      });
+    }
+  }
+
+  private async initializeMediaPipe() {
+    // Check if MediaPipe is available
+    if (!window.FaceMesh || !window.Pose || !window.Hands) {
+      console.warn('MediaPipe not available, using fallback analysis');
+      return;
+    }
+
+    // Initialize Face Mesh
+    this.faceMesh = new window.FaceMesh({
+      locateFile: (file: string) => {
+        return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`;
+      }
+    });
+
+    this.faceMesh.setOptions({
+      maxNumFaces: 1,
+      refineLandmarks: true,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5
+    });
+
+    // Initialize Pose
+    this.pose = new window.Pose({
+      locateFile: (file: string) => {
+        return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
+      }
+    });
+
+    this.pose.setOptions({
+      modelComplexity: 1,
+      smoothLandmarks: true,
+      enableSegmentation: false,
+      smoothSegmentation: true,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5
+    });
+
+    // Initialize Hands
+    this.hands = new window.Hands({
+      locateFile: (file: string) => {
+        return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+      }
+    });
+
+    this.hands.setOptions({
+      maxNumHands: 2,
+      modelComplexity: 1,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5
+    });
+  }
+
+  // Real video analysis with MediaPipe
   async analyzeVideoFrame(videoElement: HTMLVideoElement): Promise<GestureAnalysis> {
-    if (!videoElement || videoElement.readyState < 2) {
+    if (!this.isInitialized || !videoElement || videoElement.readyState < 2) {
       return this.getFallbackGestureAnalysis();
     }
 
     try {
-      // Simple analysis based on video properties
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return this.getFallbackGestureAnalysis();
-
-      canvas.width = videoElement.videoWidth;
-      canvas.height = videoElement.videoHeight;
-      ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
-
-      // Get image data for basic analysis
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const data = imageData.data;
-
-      // Simple brightness analysis (proxy for attention/position)
-      let brightness = 0;
-      for (let i = 0; i < data.length; i += 4) {
-        brightness += (data[i] + data[i + 1] + data[i + 2]) / 3;
+      // Create canvas if not exists
+      if (!this.canvas) {
+        this.canvas = document.createElement('canvas');
+        this.canvasCtx = this.canvas.getContext('2d');
+        this.canvas.width = videoElement.videoWidth;
+        this.canvas.height = videoElement.videoHeight;
       }
-      brightness /= (data.length / 4);
 
-      // Update gesture data with simple heuristics
-      this.gestureData = {
-        eyeContact: Math.min(100, Math.max(20, 40 + Math.random() * 40)), // 40-80%
-        posture: Math.min(100, Math.max(30, 50 + Math.random() * 30)),   // 50-80%
-        headMovement: Math.min(100, Math.max(10, 20 + Math.random() * 40)), // 20-60%
-        smiling: Math.min(100, Math.max(15, 25 + Math.random() * 35)),   // 25-60%
-        attention: Math.min(100, Math.max(40, 60 + Math.random() * 30)), // 60-90%
-        gestures: Math.min(100, Math.max(20, 30 + Math.random() * 40))   // 30-70%
-      };
+      // Draw video frame to canvas
+      this.canvasCtx!.drawImage(videoElement, 0, 0, this.canvas.width, this.canvas.height);
 
-      return this.gestureData;
+      // Convert to image data for MediaPipe
+      const imageData = this.canvasCtx!.getImageData(0, 0, this.canvas.width, this.canvas.height);
+      
+      // Run MediaPipe analysis if available, otherwise use fallback
+      if (this.faceMesh && this.pose && this.hands) {
+        const [faceResults, poseResults, handsResults] = await Promise.all([
+          this.analyzeFace(imageData),
+          this.analyzePose(imageData),
+          this.analyzeHands(imageData)
+        ]);
+
+        // Combine results for comprehensive analysis
+        return this.combineMediaPipeResults(faceResults, poseResults, handsResults);
+      } else {
+        // Fallback analysis without MediaPipe
+        return this.getFallbackGestureAnalysis();
+      }
 
     } catch (error) {
-      console.warn('Video analysis fallback:', error);
+      console.warn('MediaPipe analysis failed:', error);
       return this.getFallbackGestureAnalysis();
     }
   }
 
-  // Enhanced audio analysis with proper voice detection
+  private async analyzeFace(imageData: ImageData): Promise<any> {
+    return new Promise((resolve) => {
+      if (!this.faceMesh) {
+        resolve(null);
+        return;
+      }
+
+      this.faceMesh.onResults((results: any) => {
+        resolve(results);
+      });
+
+      this.faceMesh.send({ image: imageData });
+    });
+  }
+
+  private async analyzePose(imageData: ImageData): Promise<any> {
+    return new Promise((resolve) => {
+      if (!this.pose) {
+        resolve(null);
+        return;
+      }
+
+      this.pose.onResults((results: any) => {
+        resolve(results);
+      });
+
+      this.pose.send({ image: imageData });
+    });
+  }
+
+  private async analyzeHands(imageData: ImageData): Promise<any> {
+    return new Promise((resolve) => {
+      if (!this.hands) {
+        resolve(null);
+        return;
+      }
+
+      this.hands.onResults((results: any) => {
+        resolve(results);
+      });
+
+      this.hands.send({ image: imageData });
+    });
+  }
+
+  private combineMediaPipeResults(faceResults: any, poseResults: any, handsResults: any): GestureAnalysis {
+    let eyeContact = 50;
+    let posture = 60;
+    let headMovement = 40;
+    let smiling = 30;
+    let attention = 70;
+    let gestures = 35;
+
+    // Analyze face results
+    if (faceResults && faceResults.multiFaceLandmarks && faceResults.multiFaceLandmarks.length > 0) {
+      const faceLandmarks = faceResults.multiFaceLandmarks[0];
+      
+      // Eye contact analysis (simplified - check if face is facing forward)
+      const noseTip = faceLandmarks[1]; // Nose tip
+      const leftEye = faceLandmarks[33]; // Left eye corner
+      const rightEye = faceLandmarks[263]; // Right eye corner
+      
+      if (noseTip && leftEye && rightEye) {
+        const eyeDistance = Math.abs(leftEye.x - rightEye.x);
+        const faceCentered = Math.abs(noseTip.x - 0.5) < 0.2; // Face centered in frame
+        eyeContact = faceCentered ? 85 : 40;
+      }
+
+      // Smile detection (mouth corners)
+      const leftMouth = faceLandmarks[61];
+      const rightMouth = faceLandmarks[291];
+      if (leftMouth && rightMouth) {
+        const mouthOpenness = Math.abs(leftMouth.y - rightMouth.y);
+        smiling = Math.min(100, mouthOpenness * 200);
+      }
+    }
+
+    // Analyze pose results
+    if (poseResults && poseResults.poseLandmarks) {
+      const landmarks = poseResults.poseLandmarks;
+      
+      // Posture analysis (shoulder and spine alignment)
+      const leftShoulder = landmarks[11];
+      const rightShoulder = landmarks[12];
+      const nose = landmarks[0];
+      
+      if (leftShoulder && rightShoulder && nose) {
+        const shoulderAlignment = Math.abs(leftShoulder.y - rightShoulder.y);
+        const spineStraight = shoulderAlignment < 0.1; // Shoulders level
+        posture = spineStraight ? 80 : 50;
+      }
+
+      // Head movement (nose position variability)
+      headMovement = Math.min(100, Math.abs(nose.x - 0.5) * 150);
+    }
+
+    // Analyze hand gestures
+    if (handsResults && handsResults.multiHandLandmarks) {
+      const handCount = handsResults.multiHandLandmarks.length;
+      let handMovement = 0;
+
+      handsResults.multiHandLandmarks.forEach((hand: any) => {
+        // Calculate hand movement based on landmark positions
+        const wrist = hand[0];
+        const thumbTip = hand[4];
+        const indexTip = hand[8];
+        
+        if (wrist && thumbTip && indexTip) {
+          const thumbDistance = Math.sqrt(
+            Math.pow(thumbTip.x - wrist.x, 2) + 
+            Math.pow(thumbTip.y - wrist.y, 2)
+          );
+          handMovement += thumbDistance * 100;
+        }
+      });
+
+      gestures = Math.min(100, handMovement * 2 + handCount * 20);
+    }
+
+    // Attention score based on multiple factors
+    attention = Math.min(100, (eyeContact * 0.4 + posture * 0.3 + (100 - headMovement) * 0.3));
+
+    return {
+      eyeContact: Math.max(20, Math.min(100, eyeContact)),
+      posture: Math.max(30, Math.min(100, posture)),
+      headMovement: Math.max(10, Math.min(100, headMovement)),
+      smiling: Math.max(15, Math.min(100, smiling)),
+      attention: Math.max(40, Math.min(100, attention)),
+      gestures: Math.max(20, Math.min(100, gestures))
+    };
+  }
+
+  // Enhanced audio analysis with Web Audio API
   analyzeAudio(audioStream: MediaStream): VoiceAnalysis {
     if (!this.isInitialized || !audioStream.active) {
       return this.getFallbackVoiceAnalysis();
@@ -402,6 +678,7 @@ class RealTimeAnalyzer {
     return clarity;
   }
 
+  // ADD THESE MISSING METHODS
   updateSpeechMetrics(transcript: string, duration: number) {
     const words = transcript.split(/\s+/).filter(word => word.length > 0);
     this.wordCount = words.length;
@@ -428,6 +705,35 @@ class RealTimeAnalyzer {
     this.voiceData.pauses = pauseCount;
   }
 
+  resetUserSpeech() {
+    this.hasUserSpoken = false;
+    this.voiceData.confidence = 0;
+    this.voiceData.pace = 150;
+    this.voiceData.fillerWords = 0;
+    this.voiceData.pauses = 0;
+    this.wordCount = 0;
+  }
+
+  getUserEngagementLevel(): number {
+    const currentAnalysis = this.getCurrentAnalysis();
+    if (!this.isUserActuallySpeaking()) {
+      return 0;
+    }
+    
+    return Math.round(
+      (currentAnalysis.gestures.attention * 0.4) +
+      (currentAnalysis.gestures.eyeContact * 0.3) +
+      (currentAnalysis.gestures.posture * 0.3)
+    );
+  }
+
+  isUserActuallySpeaking(): boolean {
+    const currentAnalysis = this.getCurrentAnalysis();
+    return currentAnalysis.voice.volume > 25 && 
+           currentAnalysis.voice.confidence > 40 &&
+           this.hasUserSpoken;
+  }
+
   startRealTimeAnalysis(videoElement: HTMLVideoElement, audioStream: MediaStream) {
     if (this.analysisInterval) {
       clearInterval(this.analysisInterval);
@@ -437,22 +743,21 @@ class RealTimeAnalyzer {
 
     this.analysisInterval = setInterval(async () => {
       try {
-        // Always analyze audio if stream is active
+        // Analyze audio if stream is active
         if (audioStream.active) {
           const voiceAnalysis = this.analyzeAudio(audioStream);
           this.voiceData = { ...this.voiceData, ...voiceAnalysis };
         }
         
-        // Analyze video only if element is ready
+        // Analyze video with MediaPipe
         if (videoElement && videoElement.readyState >= 2) {
           const gestureAnalysis = await this.analyzeVideoFrame(videoElement);
           this.gestureData = gestureAnalysis;
         }
       } catch (error) {
         console.warn('Real-time analysis warning:', error);
-        // Continue analysis even if one frame fails
       }
-    }, 1000); // Reduced frequency for better performance
+    }, 500); // Analyze every 500ms for better performance
   }
 
   stopAnalysis() {
@@ -474,35 +779,6 @@ class RealTimeAnalyzer {
       gestures: this.gestureData,
       voice: this.voiceData
     };
-  }
-
-  resetUserSpeech() {
-    this.hasUserSpoken = false;
-    this.voiceData.confidence = 0;
-    this.voiceData.pace = 150;
-    this.voiceData.fillerWords = 0;
-    this.voiceData.pauses = 0;
-    this.wordCount = 0;
-  }
-
-  isUserActuallySpeaking(): boolean {
-    const currentAnalysis = this.getCurrentAnalysis();
-    return currentAnalysis.voice.volume > 25 && 
-           currentAnalysis.voice.confidence > 40 &&
-           this.hasUserSpoken;
-  }
-
-  getUserEngagementLevel(): number {
-    const currentAnalysis = this.getCurrentAnalysis();
-    if (!this.isUserActuallySpeaking()) {
-      return 0;
-    }
-    
-    return Math.round(
-      (currentAnalysis.gestures.attention * 0.4) +
-      (currentAnalysis.gestures.eyeContact * 0.3) +
-      (currentAnalysis.gestures.posture * 0.3)
-    );
   }
 
   private getFallbackGestureAnalysis(): GestureAnalysis {
@@ -1479,6 +1755,7 @@ const InterviewerResponseDisplay = ({
   );
 };
 // Simplified behavior analysis without MediaPipe
+// Enhanced behavior analysis with MediaPipe
 const analyzeBehaviorFromVideo = async (videoElement: HTMLVideoElement, isUserAnswering: boolean): Promise<BehavioralAnalysis> => {
   try {
     if (!videoElement || videoElement.readyState < 2 || !isUserAnswering) {
@@ -5036,15 +5313,17 @@ const detectAssessmentTypeFromProfile = (profile: InterviewProfile | null): stri
   return 'interview'; // default
 };
   // FIXED: Media initialization with better audio handling
+// Enhanced media initialization with better error handling
 const initializeMedia = async () => {
   try {
     setCameraError('');
     
-    // First try to get both audio and video
+    // Request higher quality video for better MediaPipe analysis
     const constraints = {
       video: {
         width: { ideal: 1280, min: 640 },
         height: { ideal: 720, min: 480 },
+        frameRate: { ideal: 30, min: 15 },
         facingMode: 'user'
       },
       audio: {
@@ -5052,7 +5331,8 @@ const initializeMedia = async () => {
         noiseSuppression: true,
         autoGainControl: true,
         channelCount: 1,
-        sampleRate: 44100
+        sampleRate: 44100,
+        sampleSize: 16
       }
     };
 
@@ -5064,26 +5344,27 @@ const initializeMedia = async () => {
       setIsVideoEnabled(true);
       setIsMicEnabled(true);
       
-      // Initialize audio context for voice analysis
-      if (!realTimeAnalyzer['audioContext'] || realTimeAnalyzer['isAudioContextClosed']) {
-        await realTimeAnalyzer.initialize();
-      }
-      
+      // Initialize real-time analysis
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.onloadedmetadata = () => {
           videoRef.current?.play().catch(console.warn);
+          
+          // Start MediaPipe analysis
+          setTimeout(() => {
+            realTimeAnalyzer.startRealTimeAnalysis(videoRef.current!, stream);
+          }, 1000);
         };
       }
       
-      console.log('✅ Media stream initialized successfully');
+      console.log('✅ Media stream initialized with MediaPipe');
       return true;
     }
   } catch (error: any) {
     console.error('Media access error:', error);
     setHasMediaPermissions(false);
     
-    // Try to get audio only as fallback
+    // Fallback to audio only
     try {
       const audioStream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
@@ -5094,9 +5375,6 @@ const initializeMedia = async () => {
       });
       setMediaStream(audioStream);
       setIsMicEnabled(true);
-      
-      // Initialize audio context for voice analysis
-      await realTimeAnalyzer.initialize();
       
       console.log('✅ Audio-only stream initialized');
       return true;
@@ -5207,6 +5485,25 @@ useEffect(() => {
   };
 }, [interviewStarted, interviewCompleted, interviewFlow, questionTimeLeft, currentAnswer, pendingFollowUpQuestion]);
 
+// Add this useEffect to load MediaPipe and initialize analyzer
+useEffect(() => {
+  const initializeMediaPipe = async () => {
+    try {
+      await realTimeAnalyzer.initialize();
+      console.log('✅ MediaPipe initialized successfully');
+    } catch (error) {
+      console.error('❌ MediaPipe initialization failed:', error);
+    }
+  };
+
+  if (interviewStarted) {
+    initializeMediaPipe();
+  }
+
+  return () => {
+    realTimeAnalyzer.stopAnalysis();
+  };
+}, [interviewStarted]);
   // Initialize media when component mounts
   useEffect(() => {
     if (interviewStarted && profile) {
@@ -5238,6 +5535,7 @@ useEffect(() => {
     return 'TalkGenius AI Roleplay Assessment Platform ';
   };
 // FIXED: Real-time analysis display with accurate values
+// Enhanced Real-time Analysis Display with MediaPipe data
 const RealTimeAnalysisDisplay = ({ 
   isVisible,
   gestureAnalysis,
@@ -5256,7 +5554,7 @@ const RealTimeAnalysisDisplay = ({
     <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-l-4 border-blue-400 p-4 mb-4 rounded-lg">
       <h4 className="text-blue-800 font-medium mb-3 text-sm flex items-center gap-2">
         <RefreshCw className="h-4 w-4" />
-        Real-time Analysis
+        Real-time MediaPipe Analysis
         {(!hasActualVoiceData || !hasActualGestureData) && (
           <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">
             Waiting for input...
@@ -5269,7 +5567,7 @@ const RealTimeAnalysisDisplay = ({
         <div className="bg-white p-3 rounded border border-blue-200">
           <h5 className="text-blue-700 font-medium mb-2 text-xs flex items-center gap-1">
             <Volume2 className="h-3 w-3" />
-            Voice Analysis
+            Voice Analysis (Web Audio API)
             {!hasActualVoiceData && (
               <span className="text-xs text-gray-600 ml-1">(Speak to see analysis)</span>
             )}
@@ -5278,13 +5576,15 @@ const RealTimeAnalysisDisplay = ({
             {[
               { label: 'Volume', value: voiceAnalysis?.volume || 0, color: 'bg-green-500' },
               { label: 'Clarity', value: voiceAnalysis?.clarity || 0, color: 'bg-blue-500' },
-              { label: 'Confidence', value: voiceAnalysis?.confidence || 0, color: 'bg-purple-500' }
+              { label: 'Confidence', value: voiceAnalysis?.confidence || 0, color: 'bg-purple-500' },
+              { label: 'Tone', value: voiceAnalysis?.tone || 0, color: 'bg-orange-500' },
+              { label: 'Pace', value: voiceAnalysis?.pace ? Math.min(100, (voiceAnalysis.pace / 200) * 100) : 0, color: 'bg-teal-500' }
             ].map(({ label, value, color }) => (
               <div key={label} className="flex justify-between">
                 <span>{label}:</span>
                 <div className="flex items-center gap-2">
                   <span className="font-medium w-12 text-right">
-                    {Math.round(value)}%
+                    {label === 'Pace' ? `${Math.round(value)}%` : `${Math.round(value)}%`}
                   </span>
                   <div className="w-16 bg-gray-200 rounded-full h-2">
                     <div 
@@ -5302,7 +5602,7 @@ const RealTimeAnalysisDisplay = ({
         <div className="bg-white p-3 rounded border border-purple-200">
           <h5 className="text-purple-700 font-medium mb-2 text-xs flex items-center gap-1">
             <User className="h-3 w-3" />
-            Behavior Analysis
+            Behavior Analysis (MediaPipe)
             {!hasActualGestureData && (
               <span className="text-xs text-gray-600 ml-1">(Be visible for analysis)</span>
             )}
@@ -5311,7 +5611,9 @@ const RealTimeAnalysisDisplay = ({
             {[
               { label: 'Eye Contact', value: gestureAnalysis?.eyeContact || 0, color: 'bg-green-500' },
               { label: 'Posture', value: gestureAnalysis?.posture || 0, color: 'bg-blue-500' },
-              { label: 'Attention', value: gestureAnalysis?.attention || 0, color: 'bg-purple-500' }
+              { label: 'Attention', value: gestureAnalysis?.attention || 0, color: 'bg-purple-500' },
+              { label: 'Gestures', value: gestureAnalysis?.gestures || 0, color: 'bg-orange-500' },
+              { label: 'Smiling', value: gestureAnalysis?.smiling || 0, color: 'bg-pink-500' }
             ].map(({ label, value, color }) => (
               <div key={label} className="flex justify-between">
                 <span>{label}:</span>
@@ -5333,10 +5635,10 @@ const RealTimeAnalysisDisplay = ({
       {/* Status Indicator */}
       <div className="mt-3 text-xs text-center text-gray-600">
         {!hasActualVoiceData && !hasActualGestureData ? 
-          "Start speaking and ensure you're visible for analysis" :
+          "Start speaking and ensure you're visible for MediaPipe analysis" :
           hasActualVoiceData && !hasActualGestureData ?
-          "Voice detected! Ensure you're visible for behavior analysis" :
-          "Analysis active - keep speaking naturally"
+          "Voice detected! Ensure you're visible for MediaPipe behavior analysis" :
+          "MediaPipe analysis active - keep speaking naturally"
         }
       </div>
     </div>
