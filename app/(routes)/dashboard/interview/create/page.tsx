@@ -244,6 +244,26 @@ const InterviewCreatePage = () => {
 
   // Detect field based on tab and input
   const detectField = (tab: string, title: string): string => {
+    // First check the title for specific keywords
+    const titleLower = title.toLowerCase();
+    
+    if (titleLower.includes('civil') || titleLower.includes('engineering')) {
+      return 'Engineering & Technology';
+    }
+    if (titleLower.includes('government') || titleLower.includes('public')) {
+      return 'Government & Civil Services';
+    }
+    if (titleLower.includes('health') || titleLower.includes('medical')) {
+      return 'Healthcare & Medical';
+    }
+    if (titleLower.includes('education') || titleLower.includes('teacher')) {
+      return 'Education & Academia';
+    }
+    if (titleLower.includes('legal') || titleLower.includes('law')) {
+      return 'Legal & Judiciary';
+    }
+
+    // Fallback to tab-based detection
     const fieldMap: Record<string, string> = {
       'technical': 'Technology & Engineering',
       'academic-viva': 'Education & Academia',
@@ -256,6 +276,75 @@ const InterviewCreatePage = () => {
     };
     
     return fieldMap[tab] || 'Professional Assessment';
+  };
+
+  // Generate description based on title and assessment type
+  const generateDescriptionFromTitle = (title: string, assessmentType: string): string => {
+    if (!title.trim()) return '';
+
+    const titleLower = title.toLowerCase();
+    
+    // Common keywords mapping to description templates
+    const descriptionTemplates: Record<string, string> = {
+      'technical': `Comprehensive technical assessment for ${title} covering relevant technologies, problem-solving skills, and technical competencies required for the role.`,
+      'academic-viva': `Academic viva voce examination for ${title} focusing on research methodology, theoretical knowledge, and subject matter expertise.`,
+      'communication-test': `Communication skills assessment for ${title} evaluating verbal communication, presentation abilities, and interpersonal skills.`,
+      'behavioral': `Behavioral competency assessment for ${title} examining situational judgment, teamwork, leadership qualities, and professional conduct.`,
+      'domain-specific': `Specialized domain assessment for ${title} testing industry-specific knowledge, practical applications, and field expertise.`,
+      'conceptual': `Conceptual understanding evaluation for ${title} assessing deep knowledge, critical thinking, and theoretical foundations.`,
+      'confidence-building': `Confidence building session for ${title} focusing on self-expression, communication clarity, and personal development.`,
+      'general-practice': `General communication practice for ${title} covering everyday conversation skills and practical communication scenarios.`
+    };
+
+    // Field-specific enhancements
+    const fieldEnhancements: Record<string, string> = {
+      'software': 'including programming concepts, system design, and software development practices',
+      'engineering': 'covering engineering principles, technical specifications, and project requirements',
+      'medical': 'focusing on medical knowledge, patient care, and healthcare protocols',
+      'education': 'emphasizing teaching methodologies, curriculum knowledge, and educational practices',
+      'legal': 'addressing legal principles, case analysis, and regulatory compliance',
+      'business': 'covering business strategies, management principles, and commercial awareness',
+      'research': 'focusing on research methodology, data analysis, and academic rigor',
+      'management': 'emphasizing leadership skills, strategic planning, and team management',
+      'sales': 'covering customer engagement, sales techniques, and market knowledge',
+      'design': 'focusing on creative thinking, design principles, and user experience'
+    };
+
+    let baseDescription = descriptionTemplates[assessmentType] || `Professional assessment for ${title} covering relevant skills and competencies.`;
+
+    // Enhance description based on keywords in title
+    Object.entries(fieldEnhancements).forEach(([keyword, enhancement]) => {
+      if (titleLower.includes(keyword)) {
+        baseDescription = baseDescription.replace('.', ` ${enhancement}.`);
+      }
+    });
+
+    return baseDescription;
+  };
+
+  // Handle title change and auto-generate description
+  const handleTitleChange = (value: string) => {
+    setFormData(prev => ({ 
+      ...prev, 
+      title: value,
+      description: generateDescriptionFromTitle(value, activeTab)
+    }));
+    
+    // Auto-detect field
+    const field = detectField(activeTab, value);
+    setDetectedField(field);
+    
+    if (formErrors.title) {
+      setFormErrors(prev => ({ ...prev, title: '' }));
+    }
+  };
+
+  // Handle description change separately (if user wants to customize)
+  const handleDescriptionChange = (value: string) => {
+    setFormData(prev => ({ ...prev, description: value }));
+    if (formErrors.description) {
+      setFormErrors(prev => ({ ...prev, description: '' }));
+    }
   };
 
   // Get field-specific skills for current tab
@@ -316,12 +405,6 @@ const InterviewCreatePage = () => {
     setFormData(prev => ({ ...prev, [field]: value }));
     if (formErrors[field]) {
       setFormErrors(prev => ({ ...prev, [field]: '' }));
-    }
-    
-    // Auto-detect field when title changes
-    if (field === 'title' && typeof value === 'string') {
-      const field = detectField(activeTab, value);
-      setDetectedField(field);
     }
   };
 
@@ -398,37 +481,41 @@ const InterviewCreatePage = () => {
 
   // Generate questions using AI API
   const generateQuestionsWithAI = async (): Promise<GeneratedQuestion[]> => {
-  const requestBody = {
-    ...formData,
-    resumeText: resumeText,
-    fieldCategory: detectedField,
-    generateFieldSpecific: true,
-    
-    // Ensure all context is passed
-    assessmentType: activeTab,
-    jobTitle: formData.title,
-    skills: formData.skills,
-    experience: formData.experience,
-    subject: formData.subject,
-    domain: formData.domain,
-    focusArea: formData.focusArea,
-    difficulty: formData.difficulty
-  };
-  const response = await fetch('/api/generate-questions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(requestBody),
-  });
+    // Create request body that matches the backend interface
+    const requestBody = {
+      jobTitle: formData.title,
+      jobDescription: formData.description,
+      companyName: formData.organization,
+      experience: formData.experience,
+      skills: formData.skills,
+      resumeText: resumeText,
+      fieldCategory: detectedField,
+      generateFieldSpecific: true
+    };
 
+    console.log('Sending request to API:', requestBody);
 
-    if (!response.ok) {
-      throw new Error('AI service unavailable - using intelligent field-specific question generation.');
+    try {
+      const response = await fetch('/api/generate-questions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('API Error:', response.status, errorText);
+        throw new Error(`AI service unavailable (${response.status}) - using intelligent field-specific question generation.`);
+      }
+
+      const result = await response.json();
+      return result.questions || [];
+    } catch (error: any) {
+      console.error('API Request Failed:', error);
+      throw error;
     }
-
-    const result = await response.json();
-    return result.questions || [];
   };
 
   // Generate field-specific smart questions based on tab
@@ -657,7 +744,6 @@ const InterviewCreatePage = () => {
     return questionBank.slice(0, formData.numberOfQuestions);
   };
 
-
   // Main form submission handler
   const handleSubmit = async () => {
     if (!validateForm()) {
@@ -740,41 +826,150 @@ const InterviewCreatePage = () => {
     }
   };
 
-  // Get field-specific skills for current tab
-  const availableSkills = getFieldSpecificSkills();
-
-  // Get tab-specific field labels and placeholders
-  const getFieldConfig = () => {
-    const config: Record<string, { label: string; placeholder: string }> = {
-      title: {
-        label: activeTab === 'academic-viva' ? 'Research Topic / Thesis Title' : 
-               activeTab === 'communication-test' ? 'Communication Focus Area' :
-               activeTab === 'confidence-building' ? 'Session Focus' :
-               activeTab === 'general-practice' ? 'Practice Area' : 
-               `${currentTab.name} Title`,
-        placeholder: activeTab === 'academic-viva' ? "e.g., Machine Learning Algorithms for Healthcare" :
-                    activeTab === 'communication-test' ? "e.g., Public Speaking, Business Communication" :
-                    activeTab === 'confidence-building' ? "e.g., Interview Confidence, Social Situations" :
-                    activeTab === 'general-practice' ? "e.g., Casual Conversations, Professional Meetings" :
-                    `e.g., ${currentTab.name} Preparation`
-      },
-      description: {
-        label: activeTab === 'academic-viva' ? 'Research Description / Abstract' :
-               activeTab === 'communication-test' ? 'Communication Goals & Context' :
-               activeTab === 'confidence-building' ? 'Development Goals & Context' :
-               activeTab === 'general-practice' ? 'Practice Context & Goals' : 
-               `${currentTab.name} Description`,
-        placeholder: activeTab === 'academic-viva' ? "Describe your research topic, methodology, key findings, and significance..." :
-                    activeTab === 'communication-test' ? "Describe your communication goals, specific situations you want to practice..." :
-                    activeTab === 'confidence-building' ? "Describe situations where you want to build confidence, specific challenges..." :
-                    activeTab === 'general-practice' ? "Describe the types of conversations you want to practice, specific situations..." :
-                    `Describe the ${currentTab.name.toLowerCase()} context, goals, and requirements...`
-      }
+  // Get dynamic field configuration based on title and description
+  const getDynamicFieldConfig = () => {
+    const title = formData.title.toLowerCase();
+    const description = formData.description.toLowerCase();
+    
+    // Default values
+    let detectedField = 'Professional';
+    let skillLabel = 'Required Skills & Competencies';
+    let skillPlaceholder = 'Add relevant skills and competencies...';
+    
+    // Field detection based on keywords
+    if (title.includes('civil') || title.includes('engineering') || description.includes('civil') || description.includes('engineering')) {
+      detectedField = 'Civil Engineering';
+      skillLabel = 'Engineering Skills & Competencies';
+      skillPlaceholder = 'e.g., Structural Design, Project Management, AutoCAD, Site Inspection...';
+    } else if (title.includes('software') || title.includes('developer') || title.includes('programming') || description.includes('code') || description.includes('programming')) {
+      detectedField = 'Software Development';
+      skillLabel = 'Technical Skills & Technologies';
+      skillPlaceholder = 'e.g., JavaScript, React, Node.js, Python, System Design...';
+    } else if (title.includes('medical') || title.includes('health') || title.includes('doctor') || description.includes('patient') || description.includes('clinical')) {
+      detectedField = 'Healthcare & Medical';
+      skillLabel = 'Medical Skills & Competencies';
+      skillPlaceholder = 'e.g., Patient Care, Medical Diagnosis, Clinical Procedures, Healthcare Protocols...';
+    } else if (title.includes('teacher') || title.includes('education') || title.includes('academic') || description.includes('student') || description.includes('teaching')) {
+      detectedField = 'Education';
+      skillLabel = 'Teaching Skills & Competencies';
+      skillPlaceholder = 'e.g., Curriculum Development, Classroom Management, Student Assessment, Educational Technology...';
+    } else if (title.includes('legal') || title.includes('law') || title.includes('attorney') || description.includes('legal') || description.includes('case')) {
+      detectedField = 'Legal';
+      skillLabel = 'Legal Skills & Competencies';
+      skillPlaceholder = 'e.g., Legal Research, Case Analysis, Client Counseling, Litigation...';
+    } else if (title.includes('manager') || title.includes('leadership') || description.includes('team') || description.includes('management')) {
+      detectedField = 'Management';
+      skillLabel = 'Management Skills & Competencies';
+      skillPlaceholder = 'e.g., Team Leadership, Strategic Planning, Project Management, Stakeholder Communication...';
+    } else if (title.includes('sales') || title.includes('marketing') || description.includes('customer') || description.includes('revenue')) {
+      detectedField = 'Sales & Marketing';
+      skillLabel = 'Sales & Marketing Skills';
+      skillPlaceholder = 'e.g., Customer Acquisition, Digital Marketing, Sales Strategy, Market Analysis...';
+    } else if (title.includes('finance') || title.includes('accounting') || description.includes('financial') || description.includes('budget')) {
+      detectedField = 'Finance';
+      skillLabel = 'Financial Skills & Competencies';
+      skillPlaceholder = 'e.g., Financial Analysis, Budgeting, Investment Strategies, Risk Management...';
+    } else if (title.includes('data') || title.includes('analyst') || description.includes('analysis') || description.includes('analytics')) {
+      detectedField = 'Data Science';
+      skillLabel = 'Data Skills & Competencies';
+      skillPlaceholder = 'e.g., Data Analysis, Machine Learning, SQL, Python, Statistical Modeling...';
+    } else if (title.includes('design') || title.includes('ui') || title.includes('ux') || description.includes('design')) {
+      detectedField = 'Design';
+      skillLabel = 'Design Skills & Competencies';
+      skillPlaceholder = 'e.g., UI/UX Design, User Research, Prototyping, Visual Design, Design Systems...';
+    }
+    
+    return {
+      skillLabel,
+      skillPlaceholder,
+      detectedField
     };
-    return config;
   };
 
-  const fieldConfig = getFieldConfig();
+  // Get dynamic skills based on detected field
+  const getDynamicSkillsForField = (): string[] => {
+    const fieldConfig: Record<string, string[]> = {
+      'Civil Engineering': [
+        'Structural Design', 'Project Management', 'AutoCAD', 'Site Inspection',
+        'Construction Management', 'Geotechnical Engineering', 'Surveying',
+        'Building Codes', 'Infrastructure Planning', 'Cost Estimation',
+        'Risk Assessment', 'Quality Control', 'Environmental Compliance',
+        'Concrete Technology', 'Steel Design', 'Foundation Engineering'
+      ],
+      'Software Development': [
+        'JavaScript', 'React', 'Node.js', 'Python', 'System Design',
+        'Database Management', 'API Development', 'Testing', 'Debugging',
+        'Performance Optimization', 'Security', 'Cloud Computing', 'DevOps',
+        'TypeScript', 'Java', 'AWS', 'Docker', 'Kubernetes'
+      ],
+      'Healthcare & Medical': [
+        'Patient Care', 'Medical Diagnosis', 'Clinical Procedures',
+        'Healthcare Protocols', 'Medical Records', 'Treatment Planning',
+        'Emergency Response', 'Medical Ethics', 'Patient Communication',
+        'Clinical Research', 'Healthcare Technology', 'Surgical Skills',
+        'Diagnostic Imaging', 'Pharmaceutical Knowledge'
+      ],
+      'Education': [
+        'Curriculum Development', 'Classroom Management', 'Student Assessment',
+        'Educational Technology', 'Lesson Planning', 'Differentiated Instruction',
+        'Student Engagement', 'Educational Research', 'Parent Communication',
+        'Special Education', 'Educational Leadership', 'Pedagogical Methods',
+        'Learning Assessment', 'Educational Psychology'
+      ],
+      'Legal': [
+        'Legal Research', 'Case Analysis', 'Client Counseling', 'Litigation',
+        'Contract Law', 'Legal Writing', 'Dispute Resolution', 'Regulatory Compliance',
+        'Intellectual Property', 'Corporate Law', 'Legal Ethics', 'Court Procedures',
+        'Document Review', 'Legal Analysis'
+      ],
+      'Management': [
+        'Team Leadership', 'Strategic Planning', 'Project Management',
+        'Stakeholder Communication', 'Budget Management', 'Performance Management',
+        'Change Management', 'Decision Making', 'Conflict Resolution',
+        'Business Development', 'Risk Management', 'Team Building',
+        'Strategic Thinking', 'Resource Allocation'
+      ],
+      'Sales & Marketing': [
+        'Customer Acquisition', 'Digital Marketing', 'Sales Strategy',
+        'Market Analysis', 'Brand Management', 'Social Media Marketing',
+        'Customer Relationship Management', 'Sales Forecasting', 'Content Marketing',
+        'Market Research', 'Advertising', 'SEO/SEM', 'Lead Generation'
+      ],
+      'Finance': [
+        'Financial Analysis', 'Budgeting', 'Investment Strategies',
+        'Risk Management', 'Financial Modeling', 'Accounting Principles',
+        'Tax Planning', 'Audit Compliance', 'Portfolio Management',
+        'Financial Reporting', 'Cost Control', 'Valuation', 'Mergers & Acquisitions'
+      ],
+      'Data Science': [
+        'Data Analysis', 'Machine Learning', 'SQL', 'Python', 'Statistical Modeling',
+        'Data Visualization', 'Big Data', 'Data Mining', 'Predictive Analytics',
+        'Data Cleaning', 'R Programming', 'Deep Learning', 'Business Intelligence'
+      ],
+      'Design': [
+        'UI/UX Design', 'User Research', 'Prototyping', 'Visual Design',
+        'Design Systems', 'Wireframing', 'Interaction Design', 'Design Thinking',
+        'Figma', 'Adobe Creative Suite', 'User Testing', 'Information Architecture'
+      ]
+    };
+
+    const detectedField = getDynamicFieldConfig().detectedField;
+    return fieldConfig[detectedField] || [
+      'Problem Solving', 'Communication', 'Teamwork', 'Leadership',
+      'Critical Thinking', 'Time Management', 'Adaptability', 'Creativity',
+      'Technical Skills', 'Analytical Thinking', 'Project Management'
+    ];
+  };
+
+  // Update the field when title/description changes
+  useEffect(() => {
+    if (formData.title || formData.description) {
+      const { detectedField } = getDynamicFieldConfig();
+      setDetectedField(detectedField);
+    }
+  }, [formData.title, formData.description]);
+
+  const fieldConfig = getDynamicFieldConfig();
 
   return (
     <div 
@@ -849,7 +1044,7 @@ const InterviewCreatePage = () => {
                 })}
               </div>
 
-              {/* Assessment Type Info - Moved here below the tabs */}
+              {/* Assessment Type Info */}
               <div className="mt-8 pt-6 border-t border-gray-200">
                 <h3 className="text-center text-lg font-semibold mb-6 text-gray-800">
                   Assessment Type Features
@@ -1018,18 +1213,41 @@ const InterviewCreatePage = () => {
                 {/* Title */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    {fieldConfig.title.label} <span className="text-red-500">*</span>
+                    Interview Title <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={formData.title}
-                    onChange={(e) => handleInputChange('title', e.target.value)}
+                    onChange={(e) => handleTitleChange(e.target.value)}
                     className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm placeholder-gray-400 transition-all duration-300"
-                    placeholder={fieldConfig.title.placeholder}
+                    placeholder="e.g., Senior Civil Engineer Position, Software Developer Interview, Medical Resident Assessment..."
                     disabled={isGenerating}
                   />
                   {formErrors.title && (
                     <p className="mt-1 text-sm text-red-500">{formErrors.title}</p>
+                  )}
+                </div>
+
+                {/* Description */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Interview Description <span className="text-red-500">*</span>
+                    <span className="text-xs text-gray-500 ml-2">(Auto-generated based on title)</span>
+                  </label>
+                  <textarea
+                    value={formData.description}
+                    onChange={(e) => handleDescriptionChange(e.target.value)}
+                    rows={4}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm placeholder-gray-400 transition-all duration-300"
+                    placeholder="Description will be automatically generated based on your title..."
+                    disabled={isGenerating}
+                  />
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>{formData.description.length} characters</span>
+                    <span>Minimum 30 characters required</span>
+                  </div>
+                  {formErrors.description && (
+                    <p className="mt-1 text-sm text-red-500">{formErrors.description}</p>
                   )}
                 </div>
 
@@ -1097,14 +1315,10 @@ const InterviewCreatePage = () => {
                   </select>
                 </div>
 
-                {/* Field-Specific Skills */}
+                {/* Dynamic Skills Section */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    {activeTab === 'academic-viva' ? 'Research Competencies & Skills' :
-                     activeTab === 'communication-test' ? 'Communication Skills Focus' :
-                     activeTab === 'confidence-building' ? 'Personal Development Areas' :
-                     activeTab === 'general-practice' ? 'Communication Skills' : 
-                     'Required Skills & Competencies'} <span className="text-red-500">*</span>
+                    {fieldConfig.skillLabel} <span className="text-red-500">*</span>
                   </label>
                   
                   {/* Search Skills */}
@@ -1120,9 +1334,11 @@ const InterviewCreatePage = () => {
                     />
                   </div>
 
-                  {/* Skills Grid */}
+                  {/* Dynamic Skills Grid based on detected field */}
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4 max-h-48 overflow-y-auto p-2">
-                    {filteredSkills.map((skill) => (
+                    {getDynamicSkillsForField().filter(skill => 
+                      skill.toLowerCase().includes(searchSkill.toLowerCase())
+                    ).map((skill) => (
                       <button
                         key={skill}
                         type="button"
@@ -1147,7 +1363,7 @@ const InterviewCreatePage = () => {
                       onChange={(e) => setNewSkill(e.target.value)}
                       onKeyPress={(e) => e.key === 'Enter' && addCustomSkill()}
                       className="flex-1 px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm placeholder-gray-400 transition-all duration-300"
-                      placeholder="Add custom skill or competency..."
+                      placeholder={fieldConfig.skillPlaceholder}
                       disabled={isGenerating}
                     />
                     <button
@@ -1186,28 +1402,6 @@ const InterviewCreatePage = () => {
                   
                   {formErrors.skills && (
                     <p className="mt-1 text-sm text-red-500">{formErrors.skills}</p>
-                  )}
-                </div>
-
-                {/* Description */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    {fieldConfig.description.label} <span className="text-red-500">*</span>
-                  </label>
-                  <textarea
-                    value={formData.description}
-                    onChange={(e) => handleInputChange('description', e.target.value)}
-                    rows={6}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm placeholder-gray-400 transition-all duration-300"
-                    placeholder={fieldConfig.description.placeholder}
-                    disabled={isGenerating}
-                  />
-                  <div className="flex justify-between text-xs text-gray-500 mt-1">
-                    <span>{formData.description.length} characters</span>
-                    <span>Minimum 30 characters required</span>
-                  </div>
-                  {formErrors.description && (
-                    <p className="mt-1 text-sm text-red-500">{formErrors.description}</p>
                   )}
                 </div>
 

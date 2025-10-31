@@ -1813,159 +1813,185 @@ function generateFallbackAnalysis(body: any) {
 
 
 // app/api/analyze-answer/route.ts
+// app/api/analyze-answer/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 
-interface AnalysisResponse {
-  score: number;
-  contentScore: number;
-  behavioralScore: number;
-  voiceScore: number;
-  strengths: string[];
-  improvements: string[];
-  suggestions: string[];
-  skillAssessment: {
-    [key: string]: number;
-  };
-  detailedFeedback: string;
-  confidenceLevel: number;
-  behavioralAnalysis?: any;
-  voiceAnalysis?: any;
-  comprehensiveFeedback?: any;
-  interviewerResponse: string;
-  correctedAnswer: string;
-  expectedAnswer: string;
-  followUpQuestion: string | null;
-}
-
-export async function POST(request: NextRequest) {
+// Cache the request body to avoid "Body already read" error
+async function getRequestBody(request: NextRequest) {
   try {
     const body = await request.json();
-    const {
-      question,
-      answer,
-      userName = '',
-      isUserQuestion = false,
-      userQuestion = '',
-      questionType = 'general',
-      difficulty = 'medium',
-      category = '',
-      followUpCount = 0,
-      isFollowUpResponse = false,
-      performanceScore = 0,
-      conversationContext = [],
-      skillProficiency = {},
-      behavioralData = {},
-      voiceData = {}
-    } = body;
-
-    console.log('🔍 API Received:', {
-      question: question?.substring(0, 100),
-      answer: answer?.substring(0, 100),
-      questionType,
-      followUpCount,
-      isFollowUpResponse
-    });
-
-    // Handle user questions to interviewer
-    if (isUserQuestion && userQuestion) {
-      const interviewerResponse = await handleUserQuestionWithAI(
-        userQuestion,
-        question,
-        userName,
-        performanceScore,
-        conversationContext
-      );
-      
-      return NextResponse.json({
-        interviewerResponse,
-        score: 0,
-        contentScore: 0,
-        behavioralScore: 0,
-        voiceScore: 0,
-        strengths: [],
-        improvements: [],
-        suggestions: [],
-        skillAssessment: {},
-        detailedFeedback: '',
-        confidenceLevel: 0,
-        behavioralAnalysis: {},
-        voiceAnalysis: {},
-        correctedAnswer: '',
-        expectedAnswer: '',
-        followUpQuestion: null
-      });
-    }
-
-    // Handle empty or very short answers
-    if (!answer || answer.trim().length < 3) {
-      return NextResponse.json(getEmptyResponseAnalysis(question, userName, isFollowUpResponse));
-    }
-
-    // Use REAL AI for analysis - never use static responses
-    const analysis = await getRealAIAnalysis(
-      question,
-      answer,
-      userName,
-      questionType,
-      difficulty,
-      category,
-      followUpCount,
-      isFollowUpResponse,
-      performanceScore,
-      conversationContext,
-      behavioralData,
-      voiceData
-    );
-
-    console.log('✅ Real AI Analysis Generated:', {
-      score: analysis.score,
-      hasFollowUp: !!analysis.followUpQuestion,
-      feedbackLength: analysis.detailedFeedback?.length
-    });
-
-    return NextResponse.json(analysis);
-
+    return body;
   } catch (error) {
-    console.error('❌ Error in analyze-answer API:', error);
-    
-    // Even in error, provide meaningful dynamic feedback
-    const { question, answer, userName = '' } = await request.json();
-    const fallbackAnalysis = generateDynamicFallbackAnalysis(question, answer, userName);
-    
-    return NextResponse.json(fallbackAnalysis);
+    console.error('Error reading request body:', error);
+    return null;
   }
 }
 
-// REAL AI ANALYSIS using Groq
-async function getRealAIAnalysis(
-  question: string,
-  answer: string,
-  userName: string,
-  questionType: string,
-  difficulty: string,
-  category: string,
-  followUpCount: number,
-  isFollowUpResponse: boolean,
-  performanceScore: number,
-  conversationContext: string[],
-  behavioralData: any,
-  voiceData: any
-): Promise<AnalysisResponse> {
+export async function POST(request: NextRequest) {
+  let body;
   
-  const prompt = buildDynamicPrompt(
-    question,
-    answer,
-    userName,
-    questionType,
-    difficulty,
-    category,
-    followUpCount,
-    isFollowUpResponse,
-    performanceScore,
-    conversationContext,
-    behavioralData,
-    voiceData
-  );
+  try {
+    // Read the body once and cache it
+    body = await getRequestBody(request);
+    if (!body) {
+      return NextResponse.json(
+        generateErrorAnalysis('Invalid request body'),
+        { status: 400 }
+      );
+    }
+    
+    console.log('🧠 Analyzing answer with data:', {
+      question: body.question?.substring(0, 100),
+      answer: body.answer?.substring(0, 100),
+      questionType: body.questionType,
+      answerLength: body.answer?.length || 0,
+      followUpCount: body.followUpCount
+    });
+
+    // Handle empty answers first
+    if (!body.answer || body.answer.trim().length < 3) {
+      return NextResponse.json(generateEmptyResponseAnalysis(body));
+    }
+
+    // ENHANCED: Analyze answer type first, but don't skip AI analysis for gibberish
+    const answerType = analyzeAnswerType(body.answer);
+    console.log('🔍 Answer type detected:', answerType);
+
+    // For gibberish or very poor answers, use specialized handling but still consider context
+    if (answerType === 'gibberish' || answerType === 'test-input') {
+      console.log('🔴 Poor quality answer detected:', { type: answerType, answer: body.answer });
+      return NextResponse.json(generatePoorQualityResponseAnalysis(body, answerType));
+    }
+
+    // For repetition requests, handle specially
+    if (answerType === 'repetition-request') {
+      console.log('🔄 Repetition request detected');
+      return NextResponse.json(generateRepetitionResponseAnalysis(body));
+    }
+
+    // For all other answers, use AI analysis to generate contextual follow-ups
+    return await performAIAnalysis(body);
+
+  } catch (error) {
+    console.error('🚨 Error in analyze-answer:', error);
+    
+    // Use the cached body instead of reading request again
+    if (body) {
+      return NextResponse.json(generateContextualFallbackAnalysis(body));
+    } else {
+      return NextResponse.json(
+        generateErrorAnalysis('Failed to process request'),
+        { status: 500 }
+      );
+    }
+  }
+}
+
+// ENHANCED: Analyze answer type with more granular detection
+function analyzeAnswerType(answer: string): string {
+  const cleanAnswer = answer.trim().toLowerCase();
+  
+  if (cleanAnswer.length < 5) return 'too-short';
+  
+  // Repetition requests
+  const repetitionPatterns = [
+    /repeat|say that again|didn't catch|missed that|can you say/i,
+    /what.*question|say.*question|ask.*again/i,
+    /can you epeat/i, // Common typo
+  ];
+  
+  if (repetitionPatterns.some(pattern => pattern.test(cleanAnswer))) {
+    return 'repetition-request';
+  }
+  
+  // Test inputs
+  const testPatterns = [
+    /test|testing|asd|abc|xyz/i,
+    /^[a-z]{1,3}$/i, // Single, double, or triple letters
+  ];
+  
+  if (testPatterns.some(pattern => pattern.test(cleanAnswer))) {
+    return 'test-input';
+  }
+  
+  // Keyboard mashing patterns
+  const keyboardPatterns = [
+    /(asdf|jkl|qwer|zxcv|fdsa|lkj|rewq|vcxz)/,
+    /(.)\1{3,}/, // Repeated characters (4+ times)
+    /^[^aeiouy\s]{6,}$/i, // No vowels in longer strings
+    /^[a-z]\s[a-z]\s[a-z]/i, // Single letters with spaces
+  ];
+  
+  if (keyboardPatterns.some(pattern => pattern.test(cleanAnswer))) {
+    return 'gibberish';
+  }
+  
+  // Very short meaningless answers
+  if (cleanAnswer.length < 10 && !/[aeiouy]/i.test(cleanAnswer)) {
+    return 'gibberish';
+  }
+  
+  return 'meaningful';
+}
+
+// PERFORM AI ANALYSIS FOR ALL MEANINGFUL ANSWERS
+async function performAIAnalysis(body: any) {
+  const analysisPrompt = `As an expert interviewer, analyze this response and provide SPECIFIC feedback.
+
+CONTEXT:
+QUESTION: "${body.question}"
+ANSWER: "${body.answer}"
+QUESTION TYPE: ${body.questionType}
+FOLLOW-UP ROUND: ${body.followUpCount || 0}
+ANSWER LENGTH: ${body.answer.length} characters
+
+ANALYSIS REQUIREMENTS:
+
+1. SCORING (be realistic):
+   - Content Score (0-100): Based on relevance, specificity, examples
+   - Overall Score (0-100): Weighted average
+   - Minimum score: 30 for any attempt, 50+ for substantive answers
+
+2. FOLLOW-UP QUESTION GENERATION (CRITICAL):
+   - MUST be specific to their ACTUAL answer content
+   - MUST reference something from their specific response
+   - MUST be a COMPLETE sentence ending with ?
+   - Ask for clarification, examples, or details about WHAT THEY ACTUALLY SAID
+   - Only generate if answer needs improvement (score < 70) AND followUpCount < 3
+
+3. CONTEXTUAL ANALYSIS:
+   - If answer is short/vague: Ask for specific examples
+   - If answer mentions projects/teams: Ask about their specific role
+   - If answer mentions results: Ask for specific metrics
+   - If answer is confused: Ask clarifying questions
+
+RESPONSE FORMAT - STRICT JSON:
+{
+  "score": 65,
+  "contentScore": 70,
+  "behavioralScore": 60,
+  "voiceScore": 65,
+  "strengths": ["specific strength based on their actual words"],
+  "improvements": ["specific area needing improvement based on their response"],
+  "suggestions": ["actionable advice tailored to their answer"],
+  "skillAssessment": {
+    "Communication": 70,
+    "Problem Solving": 65,
+    "Technical Knowledge": 60
+  },
+  "detailedFeedback": "2-3 sentences of specific feedback about THEIR ACTUAL ANSWER",
+  "confidenceLevel": 65,
+  "interviewerResponse": "1-2 sentence natural response that references their answer",
+  "correctedAnswer": "How to improve THEIR SPECIFIC answer",
+  "expectedAnswer": "Ideal answer structure for this question",
+  "followUpQuestion": "SPECIFIC question about THEIR ACTUAL RESPONSE OR null"
+}
+
+IMPORTANT: The followUpQuestion MUST reference their actual answer content.`;
+
+  // Use AbortController for timeout
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
 
   try {
     const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -1979,370 +2005,499 @@ async function getRealAIAnalysis(
         messages: [
           {
             role: 'system',
-            content: `You are an expert interview coach analyzing candidate responses. Provide SPECIFIC, ACTIONABLE feedback based on the actual answer content. Be constructive and professional.
-
-IMPORTANT: 
-- Analyze the ACTUAL answer content, not generic feedback
-- Provide DIFFERENT feedback for display vs spoken responses
-- Score based on answer quality, not predetermined scores
-- Suggest follow-up questions that probe deeper into the specific answer given`
+            content: `You are an expert interview analyst. 
+            CRITICAL: Generate follow-up questions that SPECIFICALLY reference the candidate's actual response.
+            - If they mentioned anything specific, ask about THAT
+            - If they were vague, ask for specifics about WHAT THEY MENTIONED
+            - Always make the follow-up question contextual to their exact words
+            - Ensure scores are realistic based on answer quality
+            - Provide SPECIFIC feedback based on their actual words
+            - ALWAYS return valid JSON with all required fields
+            - Follow-up questions must be complete sentences ending with ?`
           },
           {
             role: 'user',
-            content: prompt
+            content: analysisPrompt
           }
         ],
-        temperature: 0.7, // Higher temperature for more varied responses
-        max_tokens: 2000,
+        temperature: 0.7,
+        max_tokens: 1200,
         response_format: { type: 'json_object' }
-      })
+      }),
+      signal: controller.signal
     });
+
+    clearTimeout(timeout);
 
     if (!groqResponse.ok) {
       throw new Error(`Groq API error: ${groqResponse.status}`);
     }
 
     const data = await groqResponse.json();
-    const analysisText = data.choices[0].message.content;
+    let analysis;
     
-    const cleanAnalysisText = analysisText.replace(/```json\n?|\n?```/g, '').trim();
-    
-    let analysis: AnalysisResponse;
     try {
-      analysis = JSON.parse(cleanAnalysisText) as AnalysisResponse;
-      
-      // Validate and enhance the analysis
-      analysis = validateAndEnhanceAnalysis(analysis, question, answer, userName);
+      analysis = JSON.parse(data.choices[0].message.content);
+      analysis = validateAndFixAnalysis(analysis, body);
       
     } catch (parseError) {
       console.error('JSON parse error:', parseError);
-      throw new Error('Failed to parse AI response');
+      analysis = generateContextualFallbackAnalysis(body);
     }
 
-    return analysis;
+    console.log('✅ AI Analysis completed:', {
+      score: analysis.score,
+      hasFollowUp: !!analysis.followUpQuestion,
+      followUpQuestion: analysis.followUpQuestion,
+      answerLength: body.answer?.length
+    });
 
-  } catch (error) {
-    console.error('Groq API error:', error);
-    // Fallback to dynamic analysis based on content
-    return generateContentBasedAnalysis(question, answer, userName, questionType, followUpCount);
-  }
-}
+    return NextResponse.json(analysis);
 
-// Enhanced prompt to ensure follow-up questions are included in feedback
-function buildDynamicPrompt(
-  question: string,
-  answer: string,
-  userName: string,
-  questionType: string,
-  difficulty: string,
-  category: string,
-  followUpCount: number,
-  isFollowUpResponse: boolean,
-  performanceScore: number,
-  conversationContext: string[],
-  behavioralData: any,
-  voiceData: any
-): string {
-  const userPrefix = userName ? `${userName}, ` : '';
-
-  return `Analyze this interview response and provide SPECIFIC, DYNAMIC feedback.
-
-INTERVIEW DETAILS:
-Question: "${question}"
-Candidate's Answer: "${answer}"
-Question Type: ${questionType}
-Follow-up Round: ${followUpCount + 1}
-
-CRITICAL REQUIREMENT: 
-The "detailedFeedback" MUST include the follow-up question naturally within the feedback text.
-The "followUpQuestion" must be EXACTLY the same question that appears in the detailedFeedback.
-
-EXAMPLE OF CORRECT FORMAT:
-detailedFeedback: "Good answer. However, I'd like to understand more about your approach. Could you provide a specific example of when you used this method?"
-followUpQuestion: "Could you provide a specific example of when you used this method?"
-
-ANALYSIS REQUEST:
-
-1. CONTENT ANALYSIS:
-   - How well does the answer address the question?
-   - What specific strengths and weaknesses are present?
-   - What needs clarification or more detail?
-
-2. FEEDBACK STRUCTURE:
-   - detailedFeedback: Start with assessment, then naturally transition to your follow-up question
-   - interviewerResponse: Brief conversational response (1 sentence)
-   - followUpQuestion: Extract the exact question from your detailedFeedback
-
-3. SCORING:
-   - Be realistic based on answer quality
-   - Consider completeness, specificity, and relevance
-
-RESPONSE FORMAT (JSON):
-{
-  "score": 65,
-  "contentScore": 70,
-  "behavioralScore": 60,
-  "voiceScore": 65,
-  "strengths": ["Good structure", "Relevant experience"],
-  "improvements": ["Need more specific examples", "Could provide measurable outcomes"],
-  "suggestions": ["Use STAR method", "Include specific metrics"],
-  "skillAssessment": {
-    "Communication": 70,
-    "Problem Solving": 65,
-    "Technical Knowledge": 70
-  },
-  "detailedFeedback": "Your answer shows good understanding of the concepts. However, to better assess your practical experience, could you walk me through a specific project where you applied this approach?",
-  "confidenceLevel": 68,
-  "interviewerResponse": "Thanks for sharing your approach.",
-  "correctedAnswer": "A stronger answer would include: 'In my previous role at Company X, I implemented this by... resulting in 25% improvement...'",
-  "expectedAnswer": "An ideal response includes specific projects, measurable outcomes, and clear methodology.",
-  "followUpQuestion": "Could you walk me through a specific project where you applied this approach?"
-}
-
-IMPORTANT: The followUpQuestion MUST be extracted directly from the detailedFeedback.`;
-}
-
-// Enhanced validation to ensure feedback and follow-up questions match
-function validateAndEnhanceAnalysis(
-  analysis: AnalysisResponse, 
-  question: string, 
-  answer: string, 
-  userName: string
-): AnalysisResponse {
-  const userPrefix = userName ? `${userName}, ` : '';
-  
-  // Ensure scores are realistic
-  analysis.score = Math.max(40, Math.min(95, analysis.score || 70));
-  analysis.contentScore = Math.max(40, Math.min(95, analysis.contentScore || analysis.score));
-  analysis.behavioralScore = Math.max(40, Math.min(95, analysis.behavioralScore || 70));
-  analysis.voiceScore = Math.max(40, Math.min(95, analysis.voiceScore || 70));
-  analysis.confidenceLevel = Math.max(40, Math.min(95, analysis.confidenceLevel || analysis.score));
-
-  // CRITICAL: Ensure follow-up question matches what's in the feedback
-  if (analysis.followUpQuestion && analysis.detailedFeedback) {
-    // Check if the follow-up question is actually in the detailedFeedback
-    const followUpInFeedback = analysis.detailedFeedback.includes(analysis.followUpQuestion);
+  } catch (fetchError: any) {
+    clearTimeout(timeout);
     
-    if (!followUpInFeedback) {
-      console.warn('⚠️ Follow-up question not found in detailedFeedback. Syncing them...');
-      
-      // Extract question mark sentences from feedback to find the actual follow-up
-      const sentences = analysis.detailedFeedback.split(/[.!?]+/);
-      const questionSentences = sentences.filter(s => 
-        s.trim().endsWith('?') || 
-        s.toLowerCase().includes('could you') || 
-        s.toLowerCase().includes('can you') ||
-        s.toLowerCase().includes('what') ||
-        s.toLowerCase().includes('how')
-      );
-      
-      if (questionSentences.length > 0) {
-        // Use the last question-like sentence from feedback as the follow-up
-        const naturalFollowUp = questionSentences[questionSentences.length - 1].trim() + '?';
-        analysis.followUpQuestion = naturalFollowUp;
-        console.log('🔄 Synced follow-up question from feedback:', naturalFollowUp);
-      }
+    if (fetchError.name === 'AbortError') {
+      console.error('⏰ Groq API timeout');
+      return NextResponse.json(generateContextualFallbackAnalysis(body));
     } else {
-      console.log('✅ Follow-up question is properly included in feedback');
+      console.error('🌐 Groq API fetch error:', fetchError);
+      return NextResponse.json(generateContextualFallbackAnalysis(body));
     }
   }
+}
 
-  // If no follow-up question but feedback has questions, extract them
-  if (!analysis.followUpQuestion && analysis.detailedFeedback && analysis.detailedFeedback.includes('?')) {
-    const sentences = analysis.detailedFeedback.split(/[.!?]+/);
-    const questionSentences = sentences.filter(s => s.trim().endsWith('?'));
-    
-    if (questionSentences.length > 0) {
-      analysis.followUpQuestion = questionSentences[questionSentences.length - 1].trim() + (questionSentences[questionSentences.length - 1].endsWith('?') ? '' : '?');
-      console.log('🔍 Extracted follow-up from feedback:', analysis.followUpQuestion);
-    }
+// VALIDATE AND FIX ANALYSIS RESPONSE
+function validateAndFixAnalysis(analysis: any, body: any) {
+  const answer = body.answer || '';
+  const followUpCount = body.followUpCount || 0;
+  
+  // Ensure all required fields exist with proper values
+  analysis.score = validateScore(analysis.score, answer);
+  analysis.contentScore = validateScore(analysis.contentScore, analysis.score);
+  analysis.behavioralScore = validateScore(analysis.behavioralScore, Math.max(40, analysis.score - 10));
+  analysis.voiceScore = validateScore(analysis.voiceScore, Math.max(40, analysis.score - 5));
+  analysis.confidenceLevel = validateScore(analysis.confidenceLevel, analysis.score);
+
+  // Ensure arrays exist
+  if (!analysis.strengths || !Array.isArray(analysis.strengths)) {
+    analysis.strengths = ['Attempted to answer the question'];
   }
-
+  
+  if (!analysis.improvements || !Array.isArray(analysis.improvements)) {
+    analysis.improvements = ['Provide more specific examples'];
+  }
+  
+  if (!analysis.suggestions || !Array.isArray(analysis.suggestions)) {
+    analysis.suggestions = ['Include concrete examples from your experience'];
+  }
+  
   // Ensure skill assessment exists
-  if (!analysis.skillAssessment || Object.keys(analysis.skillAssessment).length === 0) {
+  if (!analysis.skillAssessment || typeof analysis.skillAssessment !== 'object') {
     analysis.skillAssessment = {
-      'Communication': analysis.contentScore,
-      'Problem Solving': Math.max(40, analysis.contentScore - 5),
-      'Technical Knowledge': analysis.contentScore,
+      'Communication': analysis.score,
+      'Problem Solving': Math.max(40, analysis.score - 5),
+      'Technical Knowledge': analysis.score,
       'Confidence': analysis.behavioralScore,
       'Professionalism': analysis.behavioralScore
     };
   }
-
+  
+  // VALIDATE AND FIX FOLLOW-UP QUESTION
+  analysis.followUpQuestion = validateFollowUpQuestion(
+    analysis.followUpQuestion, 
+    answer, 
+    followUpCount, 
+    analysis.score
+  );
+  
+  // Ensure detailedFeedback exists
+  if (!analysis.detailedFeedback || analysis.detailedFeedback.length < 20) {
+    analysis.detailedFeedback = generateFeedback(analysis.score, answer.length, answer);
+  }
+  
+  // Ensure interviewerResponse exists
+  if (!analysis.interviewerResponse) {
+    analysis.interviewerResponse = analysis.followUpQuestion 
+      ? `Thank you. ${analysis.followUpQuestion}`
+      : "Thank you for your response.";
+  }
+  
+  // Ensure correctedAnswer exists
+  if (!analysis.correctedAnswer) {
+    analysis.correctedAnswer = "An improved answer would include specific examples, measurable results, and a clearer connection to the role requirements.";
+  }
+  
+  // Ensure expectedAnswer exists
+  if (!analysis.expectedAnswer) {
+    analysis.expectedAnswer = "An ideal response demonstrates expertise through specific examples, shows problem-solving methodology, and highlights relevant outcomes.";
+  }
+  
   return analysis;
 }
-// Update the fallback analysis to ensure sync
-function generateContentBasedAnalysis(
-  question: string,
-  answer: string,
-  userName: string,
-  questionType: string,
-  followUpCount: number
-): AnalysisResponse {
-  const userPrefix = userName ? `${userName}, ` : '';
-  
-  // Analyze answer content dynamically
-  const wordCount = answer.trim().split(/\s+/).length;
-  const hasExamples = /example|for instance|such as|specifically/i.test(answer.toLowerCase());
-  const hasMetrics = /\d+%|\d+ years|\d+ projects|\d+ team/i.test(answer);
-  const hasStructure = /first|then|next|finally|because|therefore/i.test(answer.toLowerCase());
-  
-  // Dynamic scoring
-  let contentScore = 50;
-  if (wordCount > 100) contentScore += 20;
-  else if (wordCount > 50) contentScore += 15;
-  else if (wordCount > 25) contentScore += 10;
-  
-  if (hasExamples) contentScore += 15;
-  if (hasMetrics) contentScore += 10;
-  if (hasStructure) contentScore += 10;
-  
-  contentScore = Math.min(90, contentScore);
-  const overallScore = contentScore;
 
-  // CRITICAL: Create feedback that naturally includes the follow-up question
+// VALIDATE SCORE
+function validateScore(score: any, fallback: number): number {
+  if (typeof score !== 'number' || isNaN(score)) {
+    return Math.max(30, fallback);
+  }
+  return Math.max(30, Math.min(95, score));
+}
+
+// VALIDATE FOLLOW-UP QUESTION
+function validateFollowUpQuestion(followUpQuestion: any, answer: string, followUpCount: number, score: number): string | null {
+  // Don't ask follow-up if we've reached the limit or score is high
+  if (followUpCount >= 3 || score >= 75) {
+    return null;
+  }
+  
+  // If no follow-up question provided but we should ask one
+  if (!followUpQuestion && followUpCount < 3 && score < 70 && answer.length > 10) {
+    return generateContextualFollowUp(answer, '', followUpCount);
+  }
+  
+  // Validate existing follow-up question
+  if (followUpQuestion) {
+    // Ensure it's a complete sentence
+    if (typeof followUpQuestion !== 'string' || 
+        !followUpQuestion.trim().endsWith('?') ||
+        followUpQuestion.length < 10) {
+      return generateContextualFollowUp(answer, '', followUpCount);
+    }
+    
+    return followUpQuestion.trim();
+  }
+  
+  return null;
+}
+
+// ENHANCED: POOR QUALITY RESPONSE ANALYSIS
+function generatePoorQualityResponseAnalysis(body: any, answerType: string) {
+  const answer = body.answer || '';
+  const followUpCount = body.followUpCount || 0;
+  const shouldAskFollowUp = followUpCount < 3;
+  
   let detailedFeedback = '';
+  let interviewerResponse = '';
   let followUpQuestion = null;
 
-  if (contentScore >= 80) {
-    detailedFeedback = `${userPrefix}Excellent response! You provided comprehensive details. To explore this further, could you share how you would adapt this approach in a different context?`;
-    followUpQuestion = "Could you share how you would adapt this approach in a different context?";
-  } else if (contentScore >= 70) {
-    detailedFeedback = `${userPrefix}Good response addressing the main points. I'd like to understand more about your practical experience. Could you provide a specific example from your work?`;
-    followUpQuestion = "Could you provide a specific example from your work?";
-  } else if (contentScore >= 60) {
-    detailedFeedback = `${userPrefix}You've made a good attempt. To better assess your capabilities, what measurable results have you achieved using this approach?`;
-    followUpQuestion = "What measurable results have you achieved using this approach?";
-  } else {
-    detailedFeedback = `${userPrefix}Your answer was ${wordCount < 30 ? 'quite brief' : 'a good start'}. Could you walk me through a specific scenario where you applied this knowledge?`;
-    followUpQuestion = "Could you walk me through a specific scenario where you applied this knowledge?";
-  }
-
-  // Only ask follow-up if it makes sense
-  if (followUpCount >= 3 || contentScore >= 85) {
-    followUpQuestion = null;
-    // Remove the question from feedback if no follow-up
-    detailedFeedback = detailedFeedback.replace(/\s+Could you.*?\?/g, '.');
+  // Different responses based on answer type
+  switch (answerType) {
+    case 'gibberish':
+      detailedFeedback = "Your response appears to be incomplete or unclear. In professional interviews, it's important to provide thoughtful, relevant answers that demonstrate your knowledge and experience.";
+      interviewerResponse = "I notice your response was unclear. Could you provide a proper answer to the question?";
+      followUpQuestion = shouldAskFollowUp ? "Could you please provide a clear and detailed response to the question about your experience?" : null;
+      break;
+      
+    case 'test-input':
+      detailedFeedback = "It seems like you may be testing the system. For a realistic interview practice, please provide genuine responses that demonstrate your actual knowledge and experience.";
+      interviewerResponse = "This appears to be a test input. For meaningful interview practice, please provide a real answer based on your experience.";
+      followUpQuestion = shouldAskFollowUp ? "Could you provide a genuine response about your experience with this topic?" : null;
+      break;
+      
+    case 'too-short':
+      detailedFeedback = "Your response was quite brief. In professional settings, it's important to provide comprehensive answers with specific examples from your experience.";
+      interviewerResponse = "Could you provide a more detailed answer to the question?";
+      followUpQuestion = shouldAskFollowUp ? "What specific experience do you have with this topic? Please provide an example." : null;
+      break;
+      
+    default:
+      detailedFeedback = "Your response needs more detail and specificity to properly assess your experience.";
+      interviewerResponse = "Could you elaborate on your answer with more specific details?";
+      followUpQuestion = shouldAskFollowUp ? "Could you provide a specific example that illustrates your experience?" : null;
   }
 
   return {
-    score: overallScore,
-    contentScore,
-    behavioralScore: Math.max(60, contentScore - 5),
-    voiceScore: Math.max(60, contentScore - 5),
-    strengths: hasExamples ? 
-      ['Used specific examples', 'Good engagement'] : 
-      ['Addressed the question', 'Clear communication'],
-    improvements: !hasExamples ? 
-      ['Add more specific examples', 'Include measurable results'] : 
-      ['Provide more detailed explanations', 'Structure response more clearly'],
+    score: 25,
+    contentScore: 20,
+    behavioralScore: 30,
+    voiceScore: 25,
+    strengths: ['Willingness to participate'],
+    improvements: ['Provide meaningful, relevant responses', 'Focus on answering the specific question asked'],
     suggestions: [
-      'Use the STAR method (Situation, Task, Action, Result)',
-      'Include quantifiable metrics',
-      'Connect experience to role requirements'
+      'Take a moment to think before answering',
+      'Provide specific examples from your experience',
+      'Address the question directly with relevant information'
     ],
     skillAssessment: {
-      'Communication': contentScore,
-      'Problem Solving': Math.max(50, contentScore - 5),
-      'Technical Knowledge': contentScore,
-      'Confidence': Math.max(50, contentScore - 10),
-      'Professionalism': Math.max(50, contentScore - 5)
+      'Communication': 25,
+      'Problem Solving': 20,
+      'Technical Knowledge': 20,
+      'Confidence': 30,
+      'Professionalism': 25
     },
     detailedFeedback,
-    confidenceLevel: overallScore,
-    interviewerResponse: `${userPrefix}Thank you for your response.`,
-    correctedAnswer: "An improved answer would include specific examples, measurable outcomes, and a clear connection to the role requirements.",
-    expectedAnswer: `An ideal response would include specific examples, measurable outcomes, clear problem-solving methodology, and relevant experience details tailored to ${questionType} questions.`,
+    confidenceLevel: 25,
+    interviewerResponse,
+    correctedAnswer: "A better response would directly address the question with specific examples from your experience and clear explanations.",
+    expectedAnswer: "An ideal answer would demonstrate your expertise through specific examples, show your thought process, and provide relevant details.",
     followUpQuestion
   };
 }
-async function handleUserQuestionWithAI(
-  userQuestion: string,
-  currentQuestion: string,
-  userName: string,
-  performanceScore: number,
-  conversationContext: string[]
-): Promise<string> {
-  try {
-    const prompt = `You are an AI Roleplay. The candidate asked: "${userQuestion}"
-    
-Current interview question: "${currentQuestion}"
-Candidate's name: ${userName || 'Candidate'}
-Performance so far: ${performanceScore}%
 
-Provide a helpful, professional response (2-3 sentences max) that:
-- Directly answers their question
-- Maintains interview flow
-- Encourages continuation
+// ENHANCED: CONTEXTUAL FALLBACK ANALYSIS
+function generateContextualFallbackAnalysis(body: any) {
+  const answer = body.answer || '';
+  const question = body.question || '';
+  const followUpCount = body.followUpCount || 0;
+  const score = calculateBasicScore(answer);
+  
+  // Generate contextual follow-up based on actual answer content
+  const contextualFollowUp = generateContextualFollowUp(answer, question, followUpCount);
+  const shouldAskFollowUp = followUpCount < 3 && score < 70;
 
-Respond naturally as an interviewer would speak:`;
-
-    const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: 'llama-3.1-8b-instant',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a professional, friendly interviewer. Respond naturally and helpfully to candidate questions.'
-          },
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        temperature: 0.7,
-        max_tokens: 150
-      })
-    });
-
-    if (groqResponse.ok) {
-      const data = await groqResponse.json();
-      return data.choices[0].message.content.trim();
-    }
-  } catch (error) {
-    console.error('Error handling user question:', error);
-  }
-
-  // Fallback response
-  return `That's a good question${userName ? `, ${userName}` : ''}. I'd be happy to address that. Let me clarify that we're focusing on understanding your experience and approach through these questions.`;
+  return {
+    score: score,
+    contentScore: score,
+    behavioralScore: Math.max(40, score - 10),
+    voiceScore: Math.max(40, score - 5),
+    strengths: getContextualStrengths(answer),
+    improvements: getContextualImprovements(answer),
+    suggestions: getContextualSuggestions(answer),
+    skillAssessment: {
+      'Communication': score,
+      'Problem Solving': Math.max(40, score - 5),
+      'Technical Knowledge': score,
+      'Confidence': Math.max(40, score - 10),
+      'Professionalism': Math.max(40, score - 5)
+    },
+    detailedFeedback: generateContextualFeedback(score, answer, question),
+    confidenceLevel: score,
+    interviewerResponse: generateInterviewerResponse(score, answer, contextualFollowUp),
+    correctedAnswer: generateCorrectedAnswer(answer),
+    expectedAnswer: "An ideal response demonstrates expertise through specific examples, shows problem-solving methodology, and highlights relevant outcomes.",
+    followUpQuestion: shouldAskFollowUp ? contextualFollowUp : null
+  };
 }
 
-function getEmptyResponseAnalysis(question: string, userName: string, isFollowUpResponse: boolean): AnalysisResponse {
-  const userPrefix = userName ? `${userName}, ` : '';
+// CALCULATE BASIC SCORE
+function calculateBasicScore(answer: string): number {
+  const wordCount = answer.split(/\s+/).length;
+  let score = 40; // Base score for any attempt
   
+  if (wordCount > 100) score += 25;
+  else if (wordCount > 50) score += 20;
+  else if (wordCount > 25) score += 15;
+  else if (wordCount > 10) score += 10;
+  
+  // Bonus for quality indicators
+  if (answer.includes('example')) score += 10;
+  if (answer.includes('because')) score += 5;
+  if (/\d+%|\d+ years|\d+ projects/i.test(answer)) score += 10;
+  
+  return Math.min(85, score);
+}
+
+// ENHANCED: CONTEXTUAL FOLLOW-UP GENERATION
+function generateContextualFollowUp(answer: string, question: string, followUpCount: number): string {
+  const lowerAnswer = answer.toLowerCase();
+  const lowerQuestion = question.toLowerCase();
+  
+  // If answer is very short, ask for elaboration
+  if (answer.length < 20) {
+    return "Could you provide a more detailed explanation of your experience with this?";
+  }
+  
+  // If answer mentions specific terms, ask about them
+  if (lowerAnswer.includes('project') || lowerAnswer.includes('worked on')) {
+    return "Could you tell me more about your specific role and contributions to that project?";
+  }
+  
+  if (lowerAnswer.includes('team') || lowerAnswer.includes('colleagues')) {
+    return "What was your specific role in the team and how did you collaborate with others?";
+  }
+  
+  if (lowerAnswer.includes('result') || lowerAnswer.includes('achieved') || lowerAnswer.includes('improved')) {
+    return "Could you share specific metrics or outcomes that demonstrate those results?";
+  }
+  
+  if (lowerAnswer.includes('challenge') || lowerAnswer.includes('difficult') || lowerAnswer.includes('problem')) {
+    return "What were the main obstacles you faced and how did you overcome them?";
+  }
+  
+  if (lowerAnswer.includes('learned') || lowerAnswer.includes('improved') || lowerAnswer.includes('developed')) {
+    return "How have you applied what you learned from that experience in other situations?";
+  }
+  
+  // Question-specific follow-ups
+  if (lowerQuestion.includes('example') || lowerQuestion.includes('specific')) {
+    return "Could you walk me through a concrete example that demonstrates this approach?";
+  }
+  
+  if (lowerQuestion.includes('experience') || lowerQuestion.includes('background')) {
+    return "What specific skills or knowledge did you gain from that experience?";
+  }
+  
+  // Vary follow-ups based on count to avoid repetition
+  const variedFollowUps = [
+    "Could you provide more details about how you implemented this approach?",
+    "What was your thought process behind that particular method?",
+    "Could you give me a specific instance where you applied this knowledge?",
+    "What factors influenced your decision to use that approach?",
+    "How would you apply this differently in a new situation?"
+  ];
+  
+  return variedFollowUps[followUpCount % variedFollowUps.length];
+}
+
+// CONTEXTUAL STRENGTHS BASED ON ANSWER CONTENT
+function getContextualStrengths(answer: string): string[] {
+  const lowerAnswer = answer.toLowerCase();
+  const strengths = ['Engaged with the question'];
+  
+  if (answer.length > 50) strengths.push('Provided detailed response');
+  if (lowerAnswer.includes('because') || lowerAnswer.includes('reason')) strengths.push('Showed reasoning');
+  if (lowerAnswer.includes('example') || lowerAnswer.includes('for instance')) strengths.push('Used examples');
+  
+  return strengths;
+}
+
+// CONTEXTUAL IMPROVEMENTS BASED ON ANSWER CONTENT
+function getContextualImprovements(answer: string): string[] {
+  const improvements = ['Provide more specific examples'];
+  
+  if (answer.length < 50) improvements.push('Elaborate with more detail');
+  if (!/\d/.test(answer)) improvements.push('Include measurable results when possible');
+  if (!answer.includes('example')) improvements.unshift('Add concrete examples from experience');
+  
+  return improvements;
+}
+
+// CONTEXTUAL SUGGESTIONS
+function getContextualSuggestions(answer: string): string[] {
+  return [
+    'Use the STAR method (Situation, Task, Action, Result)',
+    'Include concrete examples from your experience',
+    'Connect your answer directly to the role requirements',
+    'Provide measurable outcomes when possible'
+  ];
+}
+
+// CONTEXTUAL FEEDBACK
+function generateContextualFeedback(score: number, answer: string, question: string): string {
+  if (score >= 70) {
+    return "Your response was comprehensive and addressed the key points well. You provided good context and reasoning for your approach.";
+  } else if (score >= 50) {
+    return "You've made a good attempt at answering the question. To strengthen your response, try to include more specific examples and measurable outcomes from your experience.";
+  } else {
+    return "Your response needs more detail and specificity. In professional interviews, it's important to provide comprehensive answers with concrete examples from your experience.";
+  }
+}
+
+// CONTEXTUAL INTERVIEWER RESPONSE
+function generateInterviewerResponse(score: number, answer: string, followUpQuestion: string | null): string {
+  if (followUpQuestion) {
+    return `Thank you for your response. ${followUpQuestion}`;
+  } else {
+    return "Thank you for your answer. Let's continue with the next question.";
+  }
+}
+
+// CONTEXTUAL CORRECTED ANSWER
+function generateCorrectedAnswer(answer: string): string {
+  if (answer.length < 30) {
+    return "An improved answer would be more detailed and include specific examples from your experience, your thought process, and measurable outcomes.";
+  } else {
+    return "To strengthen your answer, include more specific examples, measurable results, and a clearer connection between your experience and the question asked.";
+  }
+}
+
+// REPETITION RESPONSE ANALYSIS
+function generateRepetitionResponseAnalysis(body: any) {
+  return {
+    score: 40,
+    contentScore: 40,
+    behavioralScore: 50,
+    voiceScore: 45,
+    strengths: ['Asked for clarification'],
+    improvements: ['Try to answer based on your understanding', 'Provide your perspective even if uncertain'],
+    suggestions: [
+      'Take your best attempt at answering based on your understanding',
+      'Ask specific questions about parts you need clarification on',
+      'Provide your perspective while acknowledging any uncertainties'
+    ],
+    skillAssessment: {
+      'Communication': 45,
+      'Problem Solving': 40,
+      'Technical Knowledge': 40,
+      'Confidence': 35,
+      'Professionalism': 50
+    },
+    detailedFeedback: "I understand you'd like me to repeat the question. It's better to provide your best attempt at an answer, even if you're not completely certain. You can ask for clarification on specific parts if needed.",
+    confidenceLevel: 40,
+    interviewerResponse: "Of course. The question was: " + (body.question || 'Not available') + ". Please take your time to think about your response.",
+    correctedAnswer: "A better approach would be to provide your understanding of the question and your perspective, while asking for clarification on specific points if needed.",
+    expectedAnswer: "An ideal response demonstrates your thought process and provides your perspective, even when uncertain about some details.",
+    followUpQuestion: null
+  };
+}
+
+// EMPTY RESPONSE ANALYSIS
+function generateEmptyResponseAnalysis(body: any) {
+  const followUpCount = body.followUpCount || 0;
+  const shouldAskFollowUp = followUpCount < 2;
+  
+  return {
+    score: 30,
+    contentScore: 30,
+    behavioralScore: 40,
+    voiceScore: 30,
+    strengths: ['Willingness to attempt the question'],
+    improvements: ['Provide a more detailed response', 'Share specific examples from your experience'],
+    suggestions: [
+      'Try to provide at least 2-3 sentences in your response',
+      'Include specific examples from your work experience',
+      'Use the STAR method for behavioral questions'
+    ],
+    skillAssessment: {
+      'Communication': 30,
+      'Problem Solving': 30,
+      'Technical Knowledge': 30,
+      'Confidence': 35,
+      'Professionalism': 40
+    },
+    detailedFeedback: "Your response was quite brief. For interview questions, it's important to provide comprehensive answers with specific examples from your experience.",
+    confidenceLevel: 30,
+    interviewerResponse: "I appreciate your attempt. Could you provide more detail about your experience with this topic?",
+    correctedAnswer: "A better response would include specific examples from your experience, your thought process in approaching similar situations, and the outcomes or results of your actions.",
+    expectedAnswer: "An ideal answer would demonstrate your expertise through specific examples, show your problem-solving methodology, and highlight relevant outcomes.",
+    followUpQuestion: shouldAskFollowUp ? "Could you elaborate on your experience with this topic? Please provide a specific example." : null
+  };
+}
+
+// ERROR ANALYSIS
+function generateErrorAnalysis(message: string) {
   return {
     score: 50,
     contentScore: 50,
     behavioralScore: 50,
     voiceScore: 50,
-    strengths: ['Willingness to attempt the question'],
-    improvements: ['Provide more detailed response', 'Share specific examples'],
-    suggestions: [
-      'Try to provide at least 2-3 sentences',
-      'Include specific examples from your experience',
-      'Use the STAR method for behavioral questions'
-    ],
+    strengths: ['Participation in the interview'],
+    improvements: ['Continue providing detailed responses'],
+    suggestions: ['Include specific examples', 'Provide measurable results'],
     skillAssessment: {
       'Communication': 50,
       'Problem Solving': 50,
       'Technical Knowledge': 50,
-      'Confidence': 45,
+      'Confidence': 50,
       'Professionalism': 50
     },
-    detailedFeedback: `${userPrefix}Your response was quite brief. For interview questions, it's important to provide comprehensive answers with specific examples from your experience.`,
+    detailedFeedback: "Thank you for your participation in this interview.",
     confidenceLevel: 50,
-    interviewerResponse: `${userPrefix}I appreciate your attempt. Let me ask that question again - please try to provide more detail about your experience and thought process.`,
-    correctedAnswer: "A better response would include specific examples from your experience, your thought process in approaching similar situations, and the outcomes or results of your actions.",
-    expectedAnswer: "An ideal answer would demonstrate your expertise through specific examples, show your problem-solving methodology, and highlight relevant outcomes.",
-    followUpQuestion: isFollowUpResponse ? null : "Could you elaborate on your experience with this topic? Please provide a specific example."
+    interviewerResponse: "Thank you for your response. Let's continue with the interview.",
+    correctedAnswer: "Continue to provide specific examples and measurable outcomes.",
+    expectedAnswer: "Ideal responses demonstrate expertise through examples and clear reasoning.",
+    followUpQuestion: null
   };
 }
 
-function generateDynamicFallbackAnalysis(question: string, answer: string, userName: string): AnalysisResponse {
-  return generateContentBasedAnalysis(question, answer, userName, 'general', 0);
+// GENERATE FEEDBACK (for validateAndFixAnalysis)
+function generateFeedback(score: number, answerLength: number, answer: string): string {
+  if (score >= 70) {
+    return "Your response was comprehensive and addressed the key points well. You provided good context and reasoning.";
+  } else if (score >= 50) {
+    return "You've made a good attempt at answering the question. To strengthen your response, try to include more specific examples and measurable outcomes.";
+  } else {
+    return "Your response was quite brief. In professional settings, it's important to provide comprehensive answers with specific examples from your experience.";
+  }
 }
