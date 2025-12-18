@@ -224,7 +224,7 @@ const InterviewCreatePage = () => {
         experience: '0-2 years'
       },
       'general-practice': {
-        title: 'General Communication Practice',
+        title: 'General Communication ',
         description: 'Casual conversation practice for everyday communication situations',
         experience: '0-2 years'
       }

@@ -583,314 +583,511 @@ function generateFallbackQuestion(body: any) {
 
 
 // C:\Users\AATMAJA\ai-mock-interview\app\api\generate-next-question\route.ts
+// File: app/api/generate-next-question/route.ts
+
+// File: app/api/generate-next-question/route.ts
+
+// File: app/api/generate-next-question/route.ts
+
 import { NextRequest, NextResponse } from 'next/server';
+
+// Memory for each session
+const sessionMemory = new Map<string, {
+  questionsAsked: string[];
+  topicsCovered: string[];
+  userInterests: string[];
+  performanceTrend: number[];
+}>();
 
 export async function POST(request: NextRequest) {
   try {
-    // Check if Groq API key is available
-    if (!process.env.GROQ_API_KEY) {
-      console.error('GROQ_API_KEY environment variable is not set');
-      return NextResponse.json(
-        { error: 'Groq API key not configured' },
-        { status: 503 }
-      );
-    }
-
     const body = await request.json();
-    
-    console.log('🧠 Generating next question with data:', {
-      jobTitle: body.jobTitle,
-      fieldCategory: body.fieldCategory,
-      currentIndex: body.currentQuestionIndex,
-      lastScore: body.answerScore,
-      isFollowUp: body.isFollowUp || false,
-      lastAnswer: body.lastAnswer ? body.lastAnswer.substring(0, 100) + '...' : 'No answer'
-    });
+    const { 
+      profile,
+      currentPerformance = 50,
+      previousQuestions = [] as string[],
+      conversationHistory = [] as string[],
+      isFollowUp = false,
+      lastAnswer = '',
+      sessionId = 'default'
+    } = body;
 
-    // If this is a follow-up question, generate a specific follow-up based on the actual answer
-    if (body.isFollowUp && body.lastQuestion && body.lastAnswer) {
-      const followUpPrompt = `You are an expert interviewer conducting a natural conversation. Generate a SPECIFIC follow-up question based on the candidate's ACTUAL response.
+    // Extract data
+    const actualProfile = profile || {};
+    const jobTitle = actualProfile.title || '';
+    const fieldCategory = actualProfile.fieldCategory || '';
+    const assessmentType = actualProfile.assessmentType || 'general-practice';
+    const skills = actualProfile.skills || [];
+    const experience = actualProfile.experience || '';
+    const difficulty = actualProfile.difficulty || 'medium';
 
-CONTEXT:
-JOB POSITION: ${body.jobTitle || 'Not specified'}
-PREVIOUS QUESTION: "${body.lastQuestion}"
-CANDIDATE'S ACTUAL ANSWER: "${body.lastAnswer}"
-ANSWER SCORE: ${body.answerScore || 'No score'}%
-CONVERSATION CONTEXT: ${body.conversationContext ? body.conversationContext.join(' | ') : 'No context'}
-
-Generate a NATURAL follow-up question that:
-1. DIRECTLY addresses something specific from their actual answer
-2. Asks for clarification, more details, or examples about what they just said
-3. Feels like a natural continuation of the conversation
-4. Helps explore their answer more deeply
-5. Is conversational and flows naturally from their response
-
-IMPORTANT: 
-- Make it feel like a real conversation, not an interrogation
-- Reference something specific from their answer if possible
-- Don't ask generic follow-ups - be specific to their response
-- Keep it concise (1 sentence if possible)
-
-Examples of good follow-ups:
-- "You mentioned [specific thing from their answer], could you tell me more about that?"
-- "That's interesting. What was the outcome of that approach?"
-- "Could you give me a specific example of when you used that method?"
-- "What challenges did you face when implementing that solution?"
-
-Respond with valid JSON only using this structure:
-{
-  "question": "The natural, conversational follow-up question",
-  "type": "follow-up",
-  "difficulty": "easy/medium/hard",
-  "category": "Same as previous question",
-  "timeLimit": 120,
-  "fieldRelevant": true,
-  "reasoning": "Brief explanation of why this specific follow-up was chosen based on their answer",
-  "followsUp": true,
-  "skillFocus": ["Primary skill being assessed"],
-  "expectedAnswer": "What a good response to this specific follow-up would contain",
-  "correctedAnswer": "How to improve a weak response to this specific follow-up"
-}`;
-
-      const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.GROQ_API_KEY}`
-        },
-        body: JSON.stringify({
-          model: 'llama-3.1-8b-instant',
-          messages: [
-            {
-              role: 'system',
-              content: `You are a skilled interviewer having a natural conversation. Generate follow-up questions that flow naturally from the candidate's specific responses. Always make questions conversational and specific to what they actually said. Respond with valid JSON only.`
-            },
-            {
-              role: 'user',
-              content: followUpPrompt
-            }
-          ],
-          temperature: 0.8, // Slightly higher temperature for more natural conversation
-          max_tokens: 800,
-          response_format: { type: 'json_object' }
-        })
+    // Initialize session memory
+    if (!sessionMemory.has(sessionId)) {
+      sessionMemory.set(sessionId, {
+        questionsAsked: [],
+        topicsCovered: [],
+        userInterests: [],
+        performanceTrend: []
       });
-
-      if (groqResponse.ok) {
-        const data = await groqResponse.json();
-        const questionData = JSON.parse(data.choices[0].message.content);
-        
-        console.log('✅ Generated natural follow-up question:', questionData.question);
-        console.log('📝 Reasoning:', questionData.reasoning);
-        
-        return NextResponse.json({
-          success: true,
-          question: questionData,
-          isFollowUp: true
-        });
-      }
     }
+    const memory = sessionMemory.get(sessionId)!;
 
-    // Use Groq API to generate a more contextual next question
-    const prompt = `You are an expert interviewer conducting a mock interview. Generate the next MAIN question based on the conversation context.
-
-INTERVIEW CONTEXT:
-JOB POSITION: ${body.jobTitle || 'Not specified'}
-FIELD/CATEGORY: ${body.fieldCategory || 'General'}
-EXPERIENCE LEVEL: ${body.experience || 'Not specified'}
-REQUIRED SKILLS: ${body.skills ? body.skills.join(', ') : 'Not specified'}
-CURRENT PERFORMANCE: ${body.performanceScore || body.answerScore || 'No score'}%
-QUESTIONS ANSWERED: ${body.currentQuestionIndex || 0}
-CONVERSATION HISTORY: ${body.conversationContext ? body.conversationContext.slice(-2).join(' | ') : 'No history'}
-
-Generate a relevant NEXT MAIN question that:
-1. Is appropriate for the job position and experience level
-2. Builds naturally on the conversation so far OR introduces a relevant new topic
-3. Matches the difficulty based on their performance (${body.performanceScore || body.answerScore || 'unknown'}%)
-4. Tests relevant skills for the position
-5. Feels like a natural progression in the interview
-
-DIFFICULTY GUIDE:
-- Score < 60: Use easy questions to build confidence
-- Score 60-75: Use medium questions to challenge appropriately  
-- Score > 75: Use hard questions to test depth of knowledge
-
-QUESTION TYPE GUIDE:
-- Technical roles: Focus on technical problems, methodologies, tools
-- Behavioral questions: Focus on experiences, teamwork, challenges
-- Situational questions: Focus on hypothetical scenarios, problem-solving
-
-Respond with valid JSON only using this structure:
-{
-  "question": "The interview question that continues the conversation naturally",
-  "type": "technical/behavioral/situational/problem-solving",
-  "difficulty": "easy/medium/hard",
-  "category": "Relevant category based on job field",
-  "timeLimit": 180,
-  "fieldRelevant": true,
-  "reasoning": "Brief explanation of why this question was chosen based on job context and performance",
-  "followsUp": false,
-  "skillFocus": ["Primary skill being assessed"],
-  "expectedAnswer": "A comprehensive ideal answer that demonstrates expertise and relevance to the role",
-  "correctedAnswer": "An example of how to improve a basic answer with specific examples and measurable outcomes"
-}`;
-
-    const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: 'llama-3.1-8b-instant',
-        messages: [
-          {
-            role: 'system',
-            content: `You are an expert interviewer. Generate relevant, contextual interview questions that flow naturally in conversation. Adjust difficulty based on candidate performance. Always respond with valid JSON only.`
-          },
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        temperature: 0.7,
-        max_tokens: 1000,
-        response_format: { type: 'json_object' }
-      })
+    console.log('🧠 Generating next question with context:', {
+      jobTitle,
+      fieldCategory,
+      assessmentType,
+      skills: skills.slice(0, 3),
+      isFollowUp,
+      lastAnswerPreview: lastAnswer?.substring(0, 30),
+      previousQuestionsCount: previousQuestions.length,
+      conversationLength: conversationHistory.length
     });
 
-    if (!groqResponse.ok) {
-      const errorData = await groqResponse.text();
-      console.error('Groq API error:', groqResponse.status, errorData);
+    // Analyze conversation to extract topics and interests
+    if (lastAnswer) {
+      const topics = extractTopicsFromAnswer(lastAnswer);
+      const interests = extractInterestsFromAnswer(lastAnswer);
       
-      // Fallback to static questions if API fails
-      return NextResponse.json(generateFallbackQuestion(body));
+      topics.forEach(topic => {
+        if (!memory.topicsCovered.includes(topic)) {
+          memory.topicsCovered.push(topic);
+        }
+      });
+      
+      interests.forEach(interest => {
+        if (!memory.userInterests.includes(interest)) {
+          memory.userInterests.push(interest);
+        }
+      });
     }
 
-    const data = await groqResponse.json();
-    const questionData = JSON.parse(data.choices[0].message.content);
-    
-    console.log('✅ Generated main question:', questionData.question);
-    console.log('📝 Reasoning:', questionData.reasoning);
-    
+    // Track performance
+    memory.performanceTrend.push(currentPerformance);
+    if (memory.performanceTrend.length > 5) {
+      memory.performanceTrend = memory.performanceTrend.slice(-5);
+    }
+
+    let question = '';
+    let isDynamic = false;
+
+    // 1. Check for specific user requests (highest priority)
+    if (lastAnswer?.toLowerCase().includes('ask question based on') || 
+        lastAnswer?.toLowerCase().includes('question about')) {
+      const topic = extractRequestedTopic(lastAnswer);
+      question = generateTopicSpecificQuestion(topic, fieldCategory, memory);
+      isDynamic = true;
+    }
+    // 2. Check for programming requests
+    else if (lastAnswer?.toLowerCase().includes('programming') || 
+             lastAnswer?.toLowerCase().includes('code') ||
+             lastAnswer?.toLowerCase().includes('java')) {
+      question = generateProgrammingQuestion(lastAnswer, skills, difficulty, memory);
+      isDynamic = true;
+    }
+    // 3. Generate follow-up based on last answer
+    else if (isFollowUp && lastAnswer) {
+      question = generateFollowUpQuestion(lastAnswer, fieldCategory, memory);
+      isDynamic = true;
+    }
+    // 4. Generate based on user interests from conversation
+    else if (memory.userInterests.length > 0) {
+      const interest = memory.userInterests[memory.userInterests.length - 1];
+      question = generateInterestBasedQuestion(interest, fieldCategory, memory);
+      isDynamic = true;
+    }
+    // 5. Generate based on assessment type with conversation context
+    else {
+      question = generateContextualQuestion({
+        assessmentType,
+        jobTitle,
+        fieldCategory,
+        skills,
+        difficulty,
+        conversationHistory,
+        previousQuestions,
+        memory
+      });
+    }
+
+    // Ensure question is not repetitive
+    if (isQuestionSimilar(question, [...memory.questionsAsked, ...previousQuestions])) {
+      console.log('⚠️ Question similar to previous, generating alternative');
+      question = generateAlternativeQuestion(fieldCategory, assessmentType, [
+        ...memory.questionsAsked,
+        ...previousQuestions,
+        question
+      ]);
+    }
+
+    // Add to memory
+    memory.questionsAsked.push(question);
+    if (memory.questionsAsked.length > 10) {
+      memory.questionsAsked = memory.questionsAsked.slice(-10);
+    }
+
+    console.log('✅ Generated question:', {
+      question: question.substring(0, 100),
+      isDynamic,
+      topicsCovered: memory.topicsCovered.slice(-3),
+      userInterests: memory.userInterests.slice(-3),
+      questionsAskedCount: memory.questionsAsked.length
+    });
+
     return NextResponse.json({
-      success: true,
-      question: questionData,
-      isFollowUp: false
+      question,
+      isDynamic,
+      context: {
+        jobTitle,
+        fieldCategory,
+        assessmentType,
+        difficulty,
+        topics: memory.topicsCovered.slice(-3),
+        interests: memory.userInterests.slice(-3)
+      }
     });
 
   } catch (error) {
-    console.error('Error generating next question:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to generate question' },
-      { status: 500 }
-    );
+    console.error('❌ Error generating next question:', error);
+    
+    // More contextual fallback
+    const fallbackQuestions = [
+      "Based on our conversation so far, what area would you like to explore further?",
+      "What's a professional challenge you've been thinking about recently?",
+      "How do you see your skills evolving in the next year?",
+      "What's something you're currently learning or want to learn?"
+    ];
+    
+    return NextResponse.json({
+      question: fallbackQuestions[Math.floor(Math.random() * fallbackQuestions.length)],
+      isDynamic: false,
+      context: { error: 'Fallback mode' }
+    });
   }
 }
 
-// Enhanced fallback question generation with better context
-function generateFallbackQuestion(body: any) {
-  const field = body.fieldCategory || 'default';
-  const performance = body.performanceScore || body.answerScore || 50;
+// ========== DYNAMIC QUESTION GENERATORS ==========
+
+function extractTopicsFromAnswer(answer: string): string[] {
+  if (!answer) return [];
   
-  // Enhanced question banks with better categorization
-  const questionBanks = {
-    'Engineering & Technology': {
-      easy: [
-        "Can you walk me through your experience with version control systems like Git?",
-        "What programming languages are you most comfortable with and why?",
-        "How do you approach learning new technologies?",
-        "Can you describe a simple project you've worked on recently?",
-      ],
-      medium: [
-        "How do you approach debugging a complex technical issue?",
-        "What's your experience with agile development methodologies?",
-        "Can you describe a challenging technical problem you solved recently?",
-        "How do you ensure code quality in your projects?",
-      ],
-      hard: [
-        "How do you handle technical debt in long-term projects?",
-        "Can you explain a complex technical concept to a non-technical stakeholder?",
-        "What's your approach to system design for scalable applications?",
-        "How do you stay updated with the latest technology trends and evaluate which to adopt?",
-      ]
-    },
-    'Business & Management': {
-      easy: [
-        "How do you prioritize tasks when managing multiple projects?",
-        "Can you describe your experience with team collaboration?",
-        "What tools do you use for project management?",
-        "How do you handle routine day-to-day responsibilities?",
-      ],
-      medium: [
-        "Can you describe your experience with budget management?",
-        "How do you handle conflicts within a team?",
-        "What's your approach to strategic planning?",
-        "How do you measure project success beyond basic metrics?",
-      ],
-      hard: [
-        "How do you align team objectives with overall business strategy?",
-        "Can you describe a time you had to make a difficult decision with limited information?",
-        "How do you foster innovation while maintaining operational efficiency?",
-        "What's your approach to managing organizational change?",
-      ]
-    },
-    'default': {
-      easy: [
-        "Can you tell me more about that experience?",
-        "What aspects of this role interest you most?",
-        "How do you typically approach new challenges?",
-        "Can you describe a recent accomplishment you're proud of?",
-      ],
-      medium: [
-        "What were the key learnings from that situation?",
-        "How would you approach this differently today?",
-        "What specific skills did you develop from that experience?",
-        "Can you provide an example that demonstrates your problem-solving approach?",
-      ],
-      hard: [
-        "How does this experience prepare you for the challenges of this specific role?",
-        "What would you do if you faced a situation where your preferred approach wasn't working?",
-        "How do you balance competing priorities when resources are limited?",
-        "What's the most valuable lesson you've learned from past failures?",
-      ]
+  const topics: string[] = [];
+  const answerLower = answer.toLowerCase();
+  
+  const topicKeywords = [
+    { words: ['team', 'collaborat', 'work with'], topic: 'teamwork' },
+    { words: ['project', 'initiative', 'undertaking'], topic: 'project management' },
+    { words: ['problem', 'challenge', 'issue'], topic: 'problem solving' },
+    { words: ['learn', 'study', 'educat'], topic: 'learning' },
+    { words: ['communicat', 'explain', 'present'], topic: 'communication' },
+    { words: ['lead', 'manage', 'supervise'], topic: 'leadership' },
+    { words: ['java', 'code', 'program'], topic: 'programming' },
+    { words: ['client', 'customer', 'stakeholder'], topic: 'client relations' },
+    { words: ['deadline', 'time', 'schedule'], topic: 'time management' }
+  ];
+  
+  topicKeywords.forEach(({ words, topic }) => {
+    if (words.some(word => answerLower.includes(word))) {
+      topics.push(topic);
     }
-  };
-
-  // Determine difficulty based on performance
-  let difficulty: 'easy' | 'medium' | 'hard' = 'medium';
-  if (performance < 60) difficulty = 'easy';
-  else if (performance > 75) difficulty = 'hard';
-
-  // Get appropriate question bank
-  const bank = (questionBanks as any)[field] || questionBanks.default;
-  const questions = bank[difficulty] || bank.medium; // Fallback to medium if difficulty not found
+  });
   
-  const randomQuestion = questions[Math.floor(Math.random() * questions.length)];
+  return Array.from(new Set(topics)); // Remove duplicates
+}
+
+function extractInterestsFromAnswer(answer: string): string[] {
+  if (!answer) return [];
   
-  // Determine question type based on context
-  let questionType = 'behavioral';
-  if (field.includes('Engineering') || field.includes('Technology')) {
-    questionType = Math.random() > 0.5 ? 'technical' : 'problem-solving';
-  } else if (field.includes('Business') || field.includes('Management')) {
-    questionType = Math.random() > 0.5 ? 'situational' : 'behavioral';
+  const interests: string[] = [];
+  const answerLower = answer.toLowerCase();
+  
+  // Look for phrases indicating interest
+  const interestPhrases = [
+    { phrase: 'interested in', extractAfter: true },
+    { phrase: 'enjoy', extractContext: true },
+    { phrase: 'passionate about', extractAfter: true },
+    { phrase: 'like to', extractContext: true },
+    { phrase: 'want to learn', extractAfter: true }
+  ];
+  
+  interestPhrases.forEach(({ phrase, extractAfter }) => {
+    const index = answerLower.indexOf(phrase);
+    if (index !== -1) {
+      if (extractAfter) {
+        const afterPhrase = answer.substring(index + phrase.length, index + phrase.length + 30);
+        const words = afterPhrase.split(/\s+/).slice(0, 3).join(' ');
+        if (words.trim()) interests.push(words.trim());
+      }
+    }
+  });
+  
+  return interests;
+}
+
+function extractRequestedTopic(answer: string): string {
+  const answerLower = answer.toLowerCase();
+  
+  const topics = [
+    'java', 'javascript', 'python', 'react', 'node', 'database',
+    'programming', 'software', 'web development', 'mobile',
+    'ai', 'machine learning', 'cloud', 'devops'
+  ];
+  
+  for (const topic of topics) {
+    if (answerLower.includes(topic)) {
+      return topic;
+    }
   }
+  
+  return 'technology';
+}
 
-  return {
-    success: true,
-    question: {
-      question: randomQuestion,
-      type: questionType,
-      difficulty: difficulty,
-      category: body.fieldCategory || 'General',
-      timeLimit: 180,
-      fieldRelevant: true,
-      reasoning: `Generated ${difficulty} question for ${body.fieldCategory || 'general'} field based on performance score of ${performance}`,
-      followsUp: false,
-      skillFocus: body.skills?.[0] ? [body.skills[0]] : ['Problem Solving'],
-      expectedAnswer: "A comprehensive answer addressing all aspects of the question with specific examples, clear reasoning, and relevance to the role.",
-      correctedAnswer: "An improved answer would include more specific examples, measurable outcomes, a clearer thought process, and direct connections to the role requirements."
-    },
-    isFollowUp: false
+function generateTopicSpecificQuestion(topic: string, fieldCategory: string, memory: any): string {
+  const recentQuestions = memory.questionsAsked.slice(-5);
+  
+  const questionTemplates = {
+    'java': [
+      `How would you apply Java ${fieldCategory ? `in ${fieldCategory.toLowerCase()}` : 'in real-world applications'}?`,
+      `What Java concepts do you find most challenging when working on ${fieldCategory || 'software'} projects?`,
+      `Can you describe a situation where Java was particularly well-suited for a ${fieldCategory || 'technical'} challenge?`
+    ],
+    'programming': [
+      `How has programming influenced your approach to ${fieldCategory || 'professional'} challenges?`,
+      `What programming principle has been most valuable in your ${fieldCategory || 'work'}?`,
+      `Can you share an example of how programming skills helped solve a ${fieldCategory || 'complex'} problem?`
+    ],
+    'default': [
+      `How does ${topic} relate to your experience in ${fieldCategory || 'your field'}?`,
+      `What aspects of ${topic} are most relevant to ${fieldCategory || 'professional'} development?`,
+      `Can you connect ${topic} to your work in ${fieldCategory || 'this industry'}?`
+    ]
   };
+  
+  let templates = questionTemplates[topic as keyof typeof questionTemplates] || questionTemplates.default;
+  
+  // Filter out recent similar questions
+  templates = templates.filter((template: string) => 
+  !recentQuestions.some((q: string) => isQuestionSimilar(q, [template]))
+);
+  
+  return templates.length > 0 
+    ? templates[Math.floor(Math.random() * templates.length)]
+    : questionTemplates.default[0];
+}
+
+function generateProgrammingQuestion(lastAnswer: string, skills: string[], difficulty: string, memory: any): string {
+  const recentQuestions = memory.questionsAsked.slice(-5);
+  const answerLower = lastAnswer.toLowerCase();
+  
+  let language = 'programming';
+  const languages = ['java', 'python', 'javascript', 'c++', 'c#', 'typescript'];
+  
+  for (const lang of languages) {
+    if (answerLower.includes(lang)) {
+      language = lang;
+      break;
+    }
+  }
+  
+  // Check skills for languages
+  if (language === 'programming' && skills.length > 0) {
+    for (const skill of skills) {
+      const skillLower = skill.toLowerCase();
+      for (const lang of languages) {
+        if (skillLower.includes(lang)) {
+          language = lang;
+          break;
+        }
+      }
+      if (language !== 'programming') break;
+    }
+  }
+  
+  const questions = [
+    `What makes ${language} a good choice for certain types of projects?`,
+    `How do you stay current with best practices in ${language} development?`,
+    `What's been your most challenging ${language} project and why?`,
+    `How would you mentor someone new to ${language}?`
+  ];
+  
+  // Filter recent questions
+ const filtered = questions.filter((q: string) => 
+  !recentQuestions.some((rq: string) => isQuestionSimilar(rq, [q]))
+);
+
+  return filtered.length > 0 
+    ? filtered[Math.floor(Math.random() * filtered.length)]
+    : questions[0];
+}
+
+function generateFollowUpQuestion(lastAnswer: string, fieldCategory: string, memory: any): string {
+  const recentQuestions = memory.questionsAsked.slice(-5);
+  const topics = extractTopicsFromAnswer(lastAnswer);
+  
+  if (topics.length > 0) {
+    const topic = topics[topics.length - 1];
+    
+    const followUps = [
+      `You mentioned ${topic}. How has that influenced your approach to ${fieldCategory || 'work'}?`,
+      `Building on your experience with ${topic}, what would you do differently next time?`,
+      `What did you learn from that ${topic} experience that you still apply today?`
+    ];
+    
+    const filtered = followUps.filter((q: string) => 
+  !recentQuestions.some((rq: string) => isQuestionSimilar(rq, [q]))
+);
+    
+    if (filtered.length > 0) return filtered[0];
+  }
+  
+  // Generic but contextual follow-ups
+  const genericFollowUps = [
+    "What was the most important lesson from that experience?",
+    "How would you apply what you learned in a different context?",
+    "What factors would make you approach this differently now?"
+  ];
+  
+  return genericFollowUps[Math.floor(Math.random() * genericFollowUps.length)];
+}
+
+function generateInterestBasedQuestion(interest: string, fieldCategory: string, memory: any): string {
+  const recentQuestions = memory.questionsAsked.slice(-5);
+  
+  const questions = [
+    `How does your interest in ${interest} connect to your work in ${fieldCategory || 'your field'}?`,
+    `What opportunities do you see to apply ${interest} professionally?`,
+    `How has ${interest} influenced your career development?`
+  ];
+  
+  const filtered = questions.filter((q: string) => 
+  !recentQuestions.some((rq: string) => isQuestionSimilar(rq, [q]))
+);
+
+  
+  return filtered.length > 0 
+    ? filtered[Math.floor(Math.random() * filtered.length)]
+    : `Tell me more about your interest in ${interest}.`;
+}
+
+interface ContextualQuestionParams {
+  assessmentType: string;
+  jobTitle: string;
+  fieldCategory: string;
+  skills: string[];
+  difficulty: string;
+  conversationHistory: string[];
+  previousQuestions: string[];
+  memory: any;
+}
+
+function generateContextualQuestion(params: ContextualQuestionParams): string {
+  const { assessmentType, fieldCategory, skills, conversationHistory, previousQuestions, memory } = params;
+  const recentQuestions = [...memory.questionsAsked, ...previousQuestions].slice(-10);
+  
+  // Analyze conversation history for themes
+  const conversationThemes = analyzeConversationThemes(conversationHistory);
+  
+  // Build question based on context
+  let question = '';
+  
+  if (conversationThemes.length > 0) {
+    const theme = conversationThemes[conversationThemes.length - 1];
+    question = `Continuing our discussion about ${theme}, how does this relate to ${fieldCategory || 'your professional work'}?`;
+  } else if (skills.length > 0) {
+    const skill = skills[Math.floor(Math.random() * skills.length)];
+    question = `How have you applied ${skill} in practical situations?`;
+  } else {
+    // Use assessment type with variation
+    const questionsByType = {
+      'technical': [
+        `What technical trends are impacting ${fieldCategory || 'your field'}?`,
+        `How do you approach learning new technologies?`,
+        `What's your process for solving technical problems?`
+      ],
+      'behavioral': [
+        `How do you handle workplace challenges?`,
+        `What's your approach to professional relationships?`,
+        `How do you adapt to changing circumstances?`
+      ],
+      'default': [
+        `What professional growth are you currently focused on?`,
+        `How do you measure success in your work?`,
+        `What's important to you in a professional environment?`
+      ]
+    };
+    
+    const bank = questionsByType[assessmentType as keyof typeof questionsByType] || questionsByType.default;
+    
+    // Filter out recent questions
+    const available = bank.filter(q => 
+      !recentQuestions.some(rq => isQuestionSimilar(rq, [q]))
+    );
+    
+    question = available.length > 0 
+      ? available[Math.floor(Math.random() * available.length)]
+      : bank[0];
+  }
+  
+  return question;
+}
+
+function analyzeConversationThemes(conversationHistory: string[]): string[] {
+  const themes: string[] = [];
+  
+  conversationHistory.forEach((entry, index) => {
+    if (index % 2 === 0) { // User answers
+      const topics = extractTopicsFromAnswer(entry);
+      topics.forEach(topic => {
+        if (!themes.includes(topic)) {
+          themes.push(topic);
+        }
+      });
+    }
+  });
+  
+  return themes;
+}
+
+function generateAlternativeQuestion(fieldCategory: string, assessmentType: string, recentQuestions: string[]): string {
+  const alternatives = [
+    `What's been your most valuable learning experience in ${fieldCategory || 'your career'}?`,
+    `How do you stay motivated in ${fieldCategory || 'professional'} work?`,
+    `What advice would you give someone starting in ${fieldCategory || 'this field'}?`,
+    `How has ${fieldCategory || 'your industry'} changed in recent years?`
+  ];
+  
+  const filtered = alternatives.filter(q => 
+    !recentQuestions.some(rq => isQuestionSimilar(rq, [q]))
+  );
+  
+  return filtered.length > 0 
+    ? filtered[Math.floor(Math.random() * filtered.length)]
+    : alternatives[0];
+}
+
+function isQuestionSimilar(question1: string, compareQuestions: string[]): boolean {
+  if (!question1) return false;
+  
+  const q1Lower = question1.toLowerCase();
+  const q1Words = q1Lower.split(/\s+/).filter(w => w.length > 3);
+  
+  for (const compare of compareQuestions) {
+    if (!compare) continue;
+    
+    const cLower = compare.toLowerCase();
+    
+    // Exact match or contains
+    if (q1Lower === cLower || q1Lower.includes(cLower) || cLower.includes(q1Lower)) {
+      return true;
+    }
+    
+    // Check for significant word overlap
+    const cWords = cLower.split(/\s+/).filter(w => w.length > 3);
+    const commonWords = q1Words.filter(w => cWords.includes(w));
+    
+    if (commonWords.length >= 2) {
+      return true;
+    }
+  }
+  
+  return false;
 }

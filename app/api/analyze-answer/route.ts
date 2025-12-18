@@ -1813,691 +1813,882 @@ function generateFallbackAnalysis(body: any) {
 
 
 // app/api/analyze-answer/route.ts
-// app/api/analyze-answer/route.ts
+// File: app/api/analyze-answer/route.ts
+// File: app/api/analyze-answer/route.ts
+// File: app/api/analyze-answer/route.ts
+// File: app/api/analyze-answer/route.ts
+// File: app/api/analyze-answer/route.ts
+// File: app/api/analyze-answer/route.ts
+// File: app/api/analyze-answer/route.ts
+// File: app/api/analyze-answer/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 
-// Cache the request body to avoid "Body already read" error
-async function getRequestBody(request: NextRequest) {
-  try {
-    const body = await request.json();
-    return body;
-  } catch (error) {
-    console.error('Error reading request body:', error);
-    return null;
-  }
+// ========== INTERFACES ==========
+interface ConversationEntry {
+  question: string;
+  answer: string;
+  timestamp: number;
+  feedback: string;
+  score: number;
+  intent?: string;
+  topic?: string;
+  analysis?: string;
 }
 
+interface UserIntent {
+  type: 'normal' | 'scenario-request' | 'topic-request' | 'programming-request' | 'field-change-request' | 'difficulty-change' | 'topic-query' | 'answer-analysis';
+  topic?: string;
+  details?: {
+    topic?: string;
+    language?: string;
+    field?: string;
+    difficulty?: string;
+    analysis?: string;
+  };
+}
+
+interface AnswerQuality {
+  score: number;
+  feedback: string;
+  strengths: string[];
+  improvements: string[];
+  needsClarification: boolean;
+  clarificationQuestion?: string;
+  analysis?: string;
+  extractedTopics?: string[];
+  sentiment?: string;
+  complexity?: 'low' | 'medium' | 'high';
+  suggestedFollowUp?: string;
+  answerSummary?: string;
+}
+
+interface ProfileContext {
+  jobTitle: string;
+  fieldCategory: string;
+  assessmentType: string;
+  skills: string[];
+  difficulty: string;
+}
+
+// ========== GLOBAL MEMORY ==========
+const conversationMemory = new Map<string, ConversationEntry[]>();
+
+// ========== MAIN FUNCTION ==========
 export async function POST(request: NextRequest) {
-  let body;
-  
   try {
-    // Read the body once and cache it
-    body = await getRequestBody(request);
-    if (!body) {
-      return NextResponse.json(
-        generateErrorAnalysis('Invalid request body'),
-        { status: 400 }
-      );
+    let body;
+    try {
+      const bodyText = await request.text();
+      if (!bodyText.trim()) {
+        console.warn('⚠️ Empty request body');
+        return NextResponse.json(fallbackResponse(), { status: 200 });
+      }
+      
+      body = JSON.parse(bodyText);
+    } catch (parseError) {
+      console.error('❌ JSON parsing error:', parseError);
+      return NextResponse.json(fallbackResponse(), { status: 200 });
     }
     
-    console.log('🧠 Analyzing answer with data:', {
-      question: body.question?.substring(0, 100),
-      answer: body.answer?.substring(0, 100),
-      questionType: body.questionType,
-      answerLength: body.answer?.length || 0,
-      followUpCount: body.followUpCount
+    const { 
+      question = '', 
+      answer = '', 
+      profile = {},
+      jobTitle = profile?.title || 'General Communication',
+      skills = profile?.skills || [],
+      fieldCategory = profile?.fieldCategory || 'Professional',
+      assessmentType = profile?.assessmentType || 'general-practice',
+      difficulty = profile?.difficulty || 'medium',
+      sessionId = 'default'
+    } = body;
+    
+    console.log('🧠 API Request:', {
+      question: question?.substring(0, 100) || '(no question)',
+      answer: answer?.substring(0, 100) || '(no answer)',
+      fieldCategory,
+      skills: skills.slice(0, 3)
+    });
+  
+    // Initialize or get conversation memory
+    if (!conversationMemory.has(sessionId)) {
+      conversationMemory.set(sessionId, []);
+    }
+    const memory = conversationMemory.get(sessionId)!;
+    
+    // Create profile context
+    const context: ProfileContext = {
+      jobTitle,
+      fieldCategory,
+      assessmentType,
+      skills,
+      difficulty
+    };
+    
+    // Detect user intent FIRST - this is critical
+    const userIntent = detectUserIntent(answer, question, fieldCategory, memory);
+    console.log('🎯 User intent detected:', userIntent);
+
+    // Use intelligent analysis first (since Groq is timing out)
+    let answerQuality: AnswerQuality;
+    
+    console.log('🔄 Using intelligent analysis...');
+    answerQuality = await analyzeWithIntelligentFallback(
+      answer, question, context, memory, userIntent
+    );
+    
+    console.log('📊 Answer quality analyzed:', {
+      score: answerQuality.score,
+      needsClarification: answerQuality.needsClarification,
+      topics: answerQuality.extractedTopics?.slice(0, 3)
     });
 
-    // Handle empty answers first
-    if (!body.answer || body.answer.trim().length < 3) {
-      return NextResponse.json(generateEmptyResponseAnalysis(body));
-    }
-
-    // ENHANCED: Analyze answer type first, but don't skip AI analysis for gibberish
-    const answerType = analyzeAnswerType(body.answer);
-    console.log('🔍 Answer type detected:', answerType);
-
-    // For gibberish or very poor answers, use specialized handling but still consider context
-    if (answerType === 'gibberish' || answerType === 'test-input') {
-      console.log('🔴 Poor quality answer detected:', { type: answerType, answer: body.answer });
-      return NextResponse.json(generatePoorQualityResponseAnalysis(body, answerType));
-    }
-
-    // For repetition requests, handle specially
-    if (answerType === 'repetition-request') {
-      console.log('🔄 Repetition request detected');
-      return NextResponse.json(generateRepetitionResponseAnalysis(body));
-    }
-
-    // For all other answers, use AI analysis to generate contextual follow-ups
-    return await performAIAnalysis(body);
-
-  } catch (error) {
-    console.error('🚨 Error in analyze-answer:', error);
+    // Store in memory
+    memory.push({
+      question: question?.substring(0, 200) || '',
+      answer: answer?.substring(0, 200) || '',
+      timestamp: Date.now(),
+      feedback: answerQuality.feedback,
+      score: answerQuality.score,
+      intent: userIntent.type,
+      topic: userIntent.topic,
+      analysis: answerQuality.analysis
+    });
     
-    // Use the cached body instead of reading request again
-    if (body) {
-      return NextResponse.json(generateContextualFallbackAnalysis(body));
-    } else {
-      return NextResponse.json(
-        generateErrorAnalysis('Failed to process request'),
-        { status: 500 }
-      );
+    if (memory.length > 10) {
+      conversationMemory.set(sessionId, memory.slice(-10));
     }
-  }
-}
 
-// ENHANCED: Analyze answer type with more granular detection
-function analyzeAnswerType(answer: string): string {
-  const cleanAnswer = answer.trim().toLowerCase();
-  
-  if (cleanAnswer.length < 5) return 'too-short';
-  
-  // Repetition requests
-  const repetitionPatterns = [
-    /repeat|say that again|didn't catch|missed that|can you say/i,
-    /what.*question|say.*question|ask.*again/i,
-    /can you epeat/i, // Common typo
-  ];
-  
-  if (repetitionPatterns.some(pattern => pattern.test(cleanAnswer))) {
-    return 'repetition-request';
-  }
-  
-  // Test inputs
-  const testPatterns = [
-    /test|testing|asd|abc|xyz/i,
-    /^[a-z]{1,3}$/i, // Single, double, or triple letters
-  ];
-  
-  if (testPatterns.some(pattern => pattern.test(cleanAnswer))) {
-    return 'test-input';
-  }
-  
-  // Keyboard mashing patterns
-  const keyboardPatterns = [
-    /(asdf|jkl|qwer|zxcv|fdsa|lkj|rewq|vcxz)/,
-    /(.)\1{3,}/, // Repeated characters (4+ times)
-    /^[^aeiouy\s]{6,}$/i, // No vowels in longer strings
-    /^[a-z]\s[a-z]\s[a-z]/i, // Single letters with spaces
-  ];
-  
-  if (keyboardPatterns.some(pattern => pattern.test(cleanAnswer))) {
-    return 'gibberish';
-  }
-  
-  // Very short meaningless answers
-  if (cleanAnswer.length < 10 && !/[aeiouy]/i.test(cleanAnswer)) {
-    return 'gibberish';
-  }
-  
-  return 'meaningful';
-}
+    // Generate follow-up question
+    const followUpQuestion = generateDynamicFollowUp(
+      question, answer, answerQuality, context, memory, userIntent
+    );
+    
+    // Clean up the follow-up question (ensure it's complete)
+    let cleanFollowUp = followUpQuestion.trim();
+    if (!cleanFollowUp.endsWith('?')) {
+      cleanFollowUp += '?';
+    }
+    
+    // Create interviewer response that combines feedback and follow-up
+    const interviewerResponse = `${answerQuality.feedback} ${cleanFollowUp}`.trim();
+    
+    console.log('✅ Response generated:', {
+      score: answerQuality.score,
+      feedback: answerQuality.feedback.substring(0, 80),
+      followUp: cleanFollowUp
+    });
 
-// PERFORM AI ANALYSIS FOR ALL MEANINGFUL ANSWERS
-async function performAIAnalysis(body: any) {
-  const analysisPrompt = `As an expert interviewer, analyze this response and provide SPECIFIC feedback.
+    // Build the complete response - ENSURE ALL FIELDS ARE PRESENT
+    const responseData = {
+      score: answerQuality.score,
+      contentScore: answerQuality.score,
+      detailedFeedback: answerQuality.feedback,
+      interviewerResponse: interviewerResponse,
+      strengths: answerQuality.strengths,
+      improvements: answerQuality.improvements,
+      hasFollowUp: true,
+      followUpQuestion: cleanFollowUp,
+      feedbackQuestion: cleanFollowUp,
+      needsClarification: answerQuality.needsClarification,
+      clarificationQuestion: answerQuality.clarificationQuestion || '',
+      analysis: answerQuality.analysis || '',
+      extractedTopics: answerQuality.extractedTopics || [],
+      sentiment: answerQuality.sentiment || 'neutral',
+      complexity: answerQuality.complexity || 'medium',
+      aiAnalyzed: false,
+      requestedTopic: userIntent.topic || undefined,
+      answerSummary: answerQuality.answerSummary || '',
+      timestamp: Date.now(),
+      // ADD THESE CRITICAL FIELDS:
+      question: cleanFollowUp, // Some frontends expect this
+      feedback: answerQuality.feedback, // Some frontends expect this
+      nextQuestion: cleanFollowUp // Some frontends expect this
+    };
 
-CONTEXT:
-QUESTION: "${body.question}"
-ANSWER: "${body.answer}"
-QUESTION TYPE: ${body.questionType}
-FOLLOW-UP ROUND: ${body.followUpCount || 0}
-ANSWER LENGTH: ${body.answer.length} characters
-
-ANALYSIS REQUIREMENTS:
-
-1. SCORING (be realistic):
-   - Content Score (0-100): Based on relevance, specificity, examples
-   - Overall Score (0-100): Weighted average
-   - Minimum score: 30 for any attempt, 50+ for substantive answers
-
-2. FOLLOW-UP QUESTION GENERATION (CRITICAL):
-   - MUST be specific to their ACTUAL answer content
-   - MUST reference something from their specific response
-   - MUST be a COMPLETE sentence ending with ?
-   - Ask for clarification, examples, or details about WHAT THEY ACTUALLY SAID
-   - Only generate if answer needs improvement (score < 70) AND followUpCount < 3
-
-3. CONTEXTUAL ANALYSIS:
-   - If answer is short/vague: Ask for specific examples
-   - If answer mentions projects/teams: Ask about their specific role
-   - If answer mentions results: Ask for specific metrics
-   - If answer is confused: Ask clarifying questions
-
-RESPONSE FORMAT - STRICT JSON:
-{
-  "score": 65,
-  "contentScore": 70,
-  "behavioralScore": 60,
-  "voiceScore": 65,
-  "strengths": ["specific strength based on their actual words"],
-  "improvements": ["specific area needing improvement based on their response"],
-  "suggestions": ["actionable advice tailored to their answer"],
-  "skillAssessment": {
-    "Communication": 70,
-    "Problem Solving": 65,
-    "Technical Knowledge": 60
-  },
-  "detailedFeedback": "2-3 sentences of specific feedback about THEIR ACTUAL ANSWER",
-  "confidenceLevel": 65,
-  "interviewerResponse": "1-2 sentence natural response that references their answer",
-  "correctedAnswer": "How to improve THEIR SPECIFIC answer",
-  "expectedAnswer": "Ideal answer structure for this question",
-  "followUpQuestion": "SPECIFIC question about THEIR ACTUAL RESPONSE OR null"
-}
-
-IMPORTANT: The followUpQuestion MUST reference their actual answer content.`;
-
-  // Use AbortController for timeout
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8000);
-
-  try {
-    const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
+    console.log('📤 Sending response to frontend with follow-up:', cleanFollowUp.substring(0, 100));
+    
+    return NextResponse.json(responseData, { 
+      status: 200,
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: 'llama-3.1-8b-instant',
-        messages: [
-          {
-            role: 'system',
-            content: `You are an expert interview analyst. 
-            CRITICAL: Generate follow-up questions that SPECIFICALLY reference the candidate's actual response.
-            - If they mentioned anything specific, ask about THAT
-            - If they were vague, ask for specifics about WHAT THEY MENTIONED
-            - Always make the follow-up question contextual to their exact words
-            - Ensure scores are realistic based on answer quality
-            - Provide SPECIFIC feedback based on their actual words
-            - ALWAYS return valid JSON with all required fields
-            - Follow-up questions must be complete sentences ending with ?`
-          },
-          {
-            role: 'user',
-            content: analysisPrompt
-          }
-        ],
-        temperature: 0.7,
-        max_tokens: 1200,
-        response_format: { type: 'json_object' }
-      }),
-      signal: controller.signal
+        'Cache-Control': 'no-cache, no-store, must-revalidate'
+      }
     });
 
-    clearTimeout(timeout);
-
-    if (!groqResponse.ok) {
-      throw new Error(`Groq API error: ${groqResponse.status}`);
-    }
-
-    const data = await groqResponse.json();
-    let analysis;
-    
-    try {
-      analysis = JSON.parse(data.choices[0].message.content);
-      analysis = validateAndFixAnalysis(analysis, body);
-      
-    } catch (parseError) {
-      console.error('JSON parse error:', parseError);
-      analysis = generateContextualFallbackAnalysis(body);
-    }
-
-    console.log('✅ AI Analysis completed:', {
-      score: analysis.score,
-      hasFollowUp: !!analysis.followUpQuestion,
-      followUpQuestion: analysis.followUpQuestion,
-      answerLength: body.answer?.length
+  } catch (error) {
+    console.error('❌ Error in POST handler:', error);
+    return NextResponse.json(fallbackResponse(), { 
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json'
+      }
     });
-
-    return NextResponse.json(analysis);
-
-  } catch (fetchError: any) {
-    clearTimeout(timeout);
-    
-    if (fetchError.name === 'AbortError') {
-      console.error('⏰ Groq API timeout');
-      return NextResponse.json(generateContextualFallbackAnalysis(body));
-    } else {
-      console.error('🌐 Groq API fetch error:', fetchError);
-      return NextResponse.json(generateContextualFallbackAnalysis(body));
-    }
   }
 }
 
-// VALIDATE AND FIX ANALYSIS RESPONSE
-function validateAndFixAnalysis(analysis: any, body: any) {
-  const answer = body.answer || '';
-  const followUpCount = body.followUpCount || 0;
-  
-  // Ensure all required fields exist with proper values
-  analysis.score = validateScore(analysis.score, answer);
-  analysis.contentScore = validateScore(analysis.contentScore, analysis.score);
-  analysis.behavioralScore = validateScore(analysis.behavioralScore, Math.max(40, analysis.score - 10));
-  analysis.voiceScore = validateScore(analysis.voiceScore, Math.max(40, analysis.score - 5));
-  analysis.confidenceLevel = validateScore(analysis.confidenceLevel, analysis.score);
-
-  // Ensure arrays exist
-  if (!analysis.strengths || !Array.isArray(analysis.strengths)) {
-    analysis.strengths = ['Attempted to answer the question'];
-  }
-  
-  if (!analysis.improvements || !Array.isArray(analysis.improvements)) {
-    analysis.improvements = ['Provide more specific examples'];
-  }
-  
-  if (!analysis.suggestions || !Array.isArray(analysis.suggestions)) {
-    analysis.suggestions = ['Include concrete examples from your experience'];
-  }
-  
-  // Ensure skill assessment exists
-  if (!analysis.skillAssessment || typeof analysis.skillAssessment !== 'object') {
-    analysis.skillAssessment = {
-      'Communication': analysis.score,
-      'Problem Solving': Math.max(40, analysis.score - 5),
-      'Technical Knowledge': analysis.score,
-      'Confidence': analysis.behavioralScore,
-      'Professionalism': analysis.behavioralScore
+// ========== INTENT DETECTION (FIXED) ==========
+function detectUserIntent(answer: string, question: string, fieldCategory: string, memory: ConversationEntry[]): UserIntent {
+  if (!answer || typeof answer !== 'string') {
+    return { 
+      type: 'answer-analysis',
+      details: { analysis: 'No answer provided' }
     };
   }
   
-  // VALIDATE AND FIX FOLLOW-UP QUESTION
-  analysis.followUpQuestion = validateFollowUpQuestion(
-    analysis.followUpQuestion, 
-    answer, 
-    followUpCount, 
-    analysis.score
-  );
+  const answerTrimmed = answer.trim();
+  const answerLower = answerTrimmed.toLowerCase();
   
-  // Ensure detailedFeedback exists
-  if (!analysis.detailedFeedback || analysis.detailedFeedback.length < 20) {
-    analysis.detailedFeedback = generateFeedback(analysis.score, answer.length, answer);
+  // FIXED: Better topic request detection - extract just the topic, not the whole phrase
+  const topicPatterns = [
+    // Pattern: "shall we talk about X" -> extract X
+    /shall\s+we\s+(?:talk|discuss|chat)\s+(?:about|on)\s+["']?([\w\s\-]+)["']?/i,
+    // Pattern: "can we talk about X" -> extract X
+    /can\s+we\s+(?:talk|discuss|chat)\s+(?:about|on)\s+["']?([\w\s\-]+)["']?/i,
+    // Pattern: "could we talk about X" -> extract X
+    /could\s+we\s+(?:talk|discuss|chat)\s+(?:about|on)\s+["']?([\w\s\-]+)["']?/i,
+    // Pattern: "let's talk about X" -> extract X
+    /let'?s\s+(?:talk|discuss|chat)\s+(?:about|on)\s+["']?([\w\s\-]+)["']?/i,
+    // Pattern: "I want to talk about X" -> extract X
+    /i\s+(?:want|would like)\s+to\s+(?:talk|discuss|chat)\s+(?:about|on)\s+["']?([\w\s\-]+)["']?/i,
+    // Pattern: "ask me about X" -> extract X
+    /ask\s+(?:me\s+)?(?:a\s+)?question(?:s)?\s+(?:about|on|based on)\s+["']?([\w\s\-]+)["']?/i,
+    // Pattern: "questions about X" -> extract X
+    /question(?:s)?\s+(?:about|on|regarding)\s+["']?([\w\s\-]+)["']?/i,
+    // Pattern: "topic: X" -> extract X
+    /topic\s*[:\-]?\s*["']?([\w\s\-]+)["']?/i,
+    // Pattern: "based on X" -> extract X
+    /based\s+on\s+["']?([\w\s\-]+)["']?/i,
+    // Pattern: "X questions" -> extract X
+    /^["']?([\w\s\-]+)\s+questions?["']?$/i,
+    // Pattern: just a single word (like "dancing")
+    /^\s*(["']?)([a-zA-Z\s\-]+)\1\s*$/i
+  ];
+  
+  for (const pattern of topicPatterns) {
+    const match = answerLower.match(pattern);
+    if (match && match[1]) {
+      let topic = match[1].toLowerCase().trim();
+      
+      // Clean up the topic - remove phrases like "shall we talk about"
+      const cleanupPatterns = [
+        /^shall\s+we\s+(?:talk|discuss)\s+(?:about|on)\s+/i,
+        /^can\s+we\s+(?:talk|discuss)\s+(?:about|on)\s+/i,
+        /^let'?s\s+(?:talk|discuss)\s+(?:about|on)\s+/i,
+        /^i\s+(?:want|would like)\s+to\s+(?:talk|discuss)\s+(?:about|on)\s+/i,
+        /^ask\s+(?:me\s+)?(?:a\s+)?question(?:s)?\s+(?:about|on)\s+/i,
+        /^question(?:s)?\s+(?:about|on)\s+/i,
+        /^topic\s*[:\-]?\s*/i,
+        /^based\s+on\s+/i,
+        /\s+questions?$/i
+      ];
+      
+      for (const cleanupPattern of cleanupPatterns) {
+        topic = topic.replace(cleanupPattern, '').trim();
+      }
+      
+      if (topic.length > 1 && topic.length < 50 && !['yes', 'no', 'ok', 'sure', 'maybe'].includes(topic)) {
+        console.log('✅ Detected topic request for:', topic);
+        return {
+          type: 'topic-request',
+          topic: topic,
+          details: { topic }
+        };
+      }
+    }
   }
   
-  // Ensure interviewerResponse exists
-  if (!analysis.interviewerResponse) {
-    analysis.interviewerResponse = analysis.followUpQuestion 
-      ? `Thank you. ${analysis.followUpQuestion}`
-      : "Thank you for your response.";
+  // Check if answer is just a single word topic
+  const singleWordPattern = /^\s*([a-zA-Z]+)\s*$/;
+  const singleWordMatch = answerLower.match(singleWordPattern);
+  if (singleWordMatch && singleWordMatch[1]) {
+    const singleWord = singleWordMatch[1].toLowerCase().trim();
+    if (singleWord.length > 2 && !['yes', 'no', 'ok', 'idk', 'idc'].includes(singleWord)) {
+      console.log('✅ Detected single word topic request:', singleWord);
+      return {
+        type: 'topic-request',
+        topic: singleWord,
+        details: { topic: singleWord }
+      };
+    }
   }
   
-  // Ensure correctedAnswer exists
-  if (!analysis.correctedAnswer) {
-    analysis.correctedAnswer = "An improved answer would include specific examples, measurable results, and a clearer connection to the role requirements.";
+  // Scenario request detection
+  if (answerLower.includes('scenario') || answerLower.includes('situation') || 
+      answerLower.includes('real life') || answerLower.includes('example of')) {
+    console.log('🎭 Detected scenario request');
+    return {
+      type: 'scenario-request',
+      details: { analysis: 'User requested a scenario-based question' }
+    };
   }
   
-  // Ensure expectedAnswer exists
-  if (!analysis.expectedAnswer) {
-    analysis.expectedAnswer = "An ideal response demonstrates expertise through specific examples, shows problem-solving methodology, and highlights relevant outcomes.";
-  }
-  
-  return analysis;
+  // Default: analyze as regular answer
+  return { 
+    type: 'answer-analysis',
+    details: { analysis: 'Analyzing user response' }
+  };
 }
 
-// VALIDATE SCORE
-function validateScore(score: any, fallback: number): number {
-  if (typeof score !== 'number' || isNaN(score)) {
-    return Math.max(30, fallback);
+// ========== IMPROVED INTELLIGENT FALLBACK ==========
+async function analyzeWithIntelligentFallback(
+  answer: string,
+  question: string,
+  context: ProfileContext,
+  memory: ConversationEntry[],
+  intent: UserIntent
+): Promise<AnswerQuality> {
+  const answerTrimmed = answer.trim();
+  
+  // Handle empty answers
+  if (!answerTrimmed || answerTrimmed.length === 0) {
+    return {
+      score: 20,
+      feedback: "I notice you haven't provided an answer. Could you please share your thoughts on this topic?",
+      strengths: ['Attempted engagement'],
+      improvements: ['Provide a response', 'Engage with the question'],
+      needsClarification: true,
+      clarificationQuestion: "Could you share your thoughts on this topic?",
+      analysis: "No answer provided.",
+      sentiment: 'neutral',
+      complexity: 'low',
+      answerSummary: "No answer provided"
+    };
   }
-  return Math.max(30, Math.min(95, score));
+  
+  const wordCount = answerTrimmed.split(/\s+/).length;
+  const answerLower = answerTrimmed.toLowerCase();
+  
+  // CRITICAL: Handle topic requests first - give GOOD scores for topic requests
+  if (intent.type === 'topic-request' && intent.topic) {
+    const topic = intent.topic;
+    console.log(`🎯 Handling topic request for: ${topic}`);
+    
+    // Clean the topic further
+    const cleanTopic = topic.replace(/\s+/g, ' ').trim();
+    
+    return {
+      score: 85, // Excellent score for topic requests
+      feedback: `Excellent! I'd be happy to discuss ${cleanTopic} with you. What would you like to focus on first?`,
+      strengths: ['Clear topic preference', 'Proactive engagement', 'Good communication'],
+      improvements: ['Could specify what aspect interests you'],
+      needsClarification: false,
+      analysis: `User requested to change topic to ${cleanTopic}. This shows engagement and interest.`,
+      extractedTopics: [cleanTopic],
+      sentiment: 'positive',
+      complexity: 'medium',
+      suggestedFollowUp: `What interests you most about ${cleanTopic}?`,
+      answerSummary: `Requested to discuss ${cleanTopic}`
+    };
+  }
+  
+  // Handle scenario requests
+  if (intent.type === 'scenario-request') {
+    return {
+      score: 80,
+      feedback: "Great! You've asked for a real-life scenario. This is an excellent way to practice practical communication skills.",
+      strengths: ['Practical learning approach', 'Scenario-based thinking'],
+      improvements: ['Could specify the type of scenario'],
+      needsClarification: false,
+      analysis: "User requested a scenario-based question.",
+      extractedTopics: ['scenario', 'real-life'],
+      sentiment: 'positive',
+      complexity: 'medium',
+      suggestedFollowUp: "What type of real-life scenario would you like to practice?",
+      answerSummary: "Requested scenario-based questions"
+    };
+  }
+  
+  // Handle uncertainty responses
+  const uncertaintyPhrases = ["i don't know", "i don't", "not sure", "no idea", "unsure", "idk", "nothing"];
+  if (uncertaintyPhrases.some(phrase => answerLower.includes(phrase)) && wordCount < 15) {
+    return {
+      score: 45,
+      feedback: "That's okay - it's normal to encounter questions that require some thought. Let me help you think through this. Perhaps we could explore a related area you're more comfortable with?",
+      strengths: ['Honest response', 'Self-awareness'],
+      improvements: ['Try to connect with related experiences', 'Think about similar situations', 'Share your thought process even if uncertain'],
+      needsClarification: true,
+      clarificationQuestion: "Can you think of a related experience or skill that might be relevant here?",
+      analysis: "User expressed uncertainty about the topic. This is common in interviews and shows honesty.",
+      extractedTopics: [],
+      sentiment: 'neutral',
+      complexity: 'low',
+      answerSummary: "Expressed uncertainty about the topic"
+    };
+  }
+  
+  // Handle very short answers
+  if (wordCount < 10 && answerLower.length < 50) {
+    return {
+      score: 50,
+      feedback: "Thanks for your brief response. To help me understand your perspective better, could you elaborate a bit more?",
+      strengths: ['Concise response'],
+      improvements: ['Provide more details', 'Share examples', 'Explain your reasoning'],
+      needsClarification: true,
+      clarificationQuestion: "Could you expand on that with more details or an example?",
+      analysis: "Brief answer provided. User may need encouragement to elaborate.",
+      extractedTopics: [],
+      sentiment: 'neutral',
+      complexity: 'low',
+      answerSummary: "Short answer provided"
+    };
+  }
+  
+  // Analyze the actual answer content
+  let score = 60; // Start higher for engaged responses
+  const strengths: string[] = [];
+  const improvements: string[] = [];
+  const extractedTopics: string[] = [];
+  
+  // Basic analysis
+  if (wordCount < 15) {
+    score = 45;
+    improvements.push('Provide more detailed response');
+  } else if (wordCount > 50) {
+    score += 20;
+    strengths.push('Comprehensive answer');
+  } else if (wordCount > 30) {
+    score += 10;
+    strengths.push('Detailed response');
+  }
+  
+  // Check for examples
+  if (answerLower.includes('example') || answerLower.includes('for instance') || 
+      answerLower.includes('such as') || answerLower.includes('like when')) {
+    score += 15;
+    strengths.push('Used specific examples');
+  } else if (wordCount > 20) {
+    improvements.push('Add concrete examples');
+  }
+  
+  // Check for reasoning
+  if (answerLower.includes('because') || answerLower.includes('reason') || 
+      answerLower.includes('therefore') || answerLower.includes('since')) {
+    score += 10;
+    strengths.push('Provided logical reasoning');
+  } else if (wordCount > 15) {
+    improvements.push('Explain your thought process');
+  }
+  
+  // Extract topics from answer
+  const commonTopics = [
+    'history', 'mathematics', 'math', 'politics', 'technology', 'business', 'science',
+    'economics', 'psychology', 'sociology', 'philosophy', 'literature', 'art',
+    'physics', 'chemistry', 'biology', 'programming', 'python', 'java', 'javascript',
+    'software', 'engineering', 'medicine', 'health', 'education', 'law', 'culture',
+    'religion', 'sports', 'design', 'ux', 'ui', 'data science', 'ai', 'machine learning'
+  ];
+  
+  commonTopics.forEach(topic => {
+    if (answerLower.includes(topic)) {
+      extractedTopics.push(topic);
+    }
+  });
+  
+  // Check for skills from context
+  context.skills.forEach(skill => {
+    if (answerLower.includes(skill.toLowerCase())) {
+      extractedTopics.push(skill);
+    }
+  });
+  
+  // Determine sentiment
+  const positiveWords = ['good', 'great', 'excellent', 'positive', 'success', 'achievement', 'happy', 'enjoy'];
+  const negativeWords = ['bad', 'poor', 'negative', 'fail', 'failure', 'problem', 'issue', 'difficult', 'hard'];
+  
+  let sentiment: 'positive' | 'neutral' | 'negative' = 'neutral';
+  const positiveCount = positiveWords.filter(word => answerLower.includes(word)).length;
+  const negativeCount = negativeWords.filter(word => answerLower.includes(word)).length;
+  
+  if (positiveCount > negativeCount) sentiment = 'positive';
+  else if (negativeCount > positiveCount) sentiment = 'negative';
+  
+  // Determine complexity
+  let complexity: 'low' | 'medium' | 'high' = 'low';
+  if (wordCount > 100) complexity = 'high';
+  else if (wordCount > 30) complexity = 'medium';
+  
+  // Check for structure
+  const hasStructure = answerLower.includes('first') || answerLower.includes('second') || 
+                      answerLower.includes('then') || answerLower.includes('finally') ||
+                      answerLower.includes('step') || answerLower.includes('process');
+  
+  if (hasStructure) {
+    score += 5;
+    strengths.push('Well-structured response');
+  }
+  
+  // Check for repetition
+  const isRepeating = checkForRepetition(answer, memory);
+  if (isRepeating) {
+    score -= 5;
+    improvements.push('Try to add new insights');
+  }
+  
+  // Final score adjustments
+  score = Math.max(30, Math.min(95, score));
+  
+  // Determine if clarification is needed
+  const needsClarification = wordCount < 15 || isRepeating || score < 50;
+  let clarificationQuestion = '';
+  
+  if (needsClarification) {
+    clarificationQuestion = generateClarificationQuestion(question, context, memory, extractedTopics);
+  }
+  
+  // Generate analysis summary
+  const analysis = `Response analysis: ${wordCount} words, ${sentiment} sentiment, ${complexity} complexity. ${
+    extractedTopics.length > 0 ? `Topics mentioned: ${extractedTopics.slice(0, 3).join(', ')}.` : ''
+  }`;
+  
+  // Generate feedback
+  let feedback = '';
+  if (score >= 85) {
+    feedback = "Excellent response! You've demonstrated strong understanding with clear examples and reasoning.";
+  } else if (score >= 70) {
+    feedback = "Very good answer. You've addressed the question well with relevant points and analysis.";
+  } else if (score >= 55) {
+    feedback = "Good response. You've made a solid start in addressing the question.";
+  } else if (score >= 40) {
+    feedback = "Thank you for your response. You've engaged with the question appropriately.";
+  } else {
+    feedback = "I appreciate your response. Let me ask a follow-up to explore this further.";
+  }
+  
+  // Ensure we have strengths and improvements
+  if (strengths.length === 0) {
+    if (wordCount > 10) {
+      strengths.push('Engaged with the question');
+      strengths.push('Provided relevant response');
+    } else {
+      strengths.push('Attempted to answer');
+    }
+  }
+  
+  if (improvements.length === 0 && score < 80) {
+    improvements.push('Continue developing your responses');
+  }
+  
+  // Generate suggested follow-up
+  let suggestedFollowUp = '';
+  if (intent.type === 'topic-request' && intent.topic) {
+    suggestedFollowUp = `What interests you most about ${intent.topic}?`;
+  } else if (extractedTopics.length > 0) {
+    const mainTopic = extractedTopics[0];
+    suggestedFollowUp = `How does your experience with ${mainTopic} influence your approach to similar situations?`;
+  } else {
+    suggestedFollowUp = "Could you elaborate on that with a specific example from your experience?";
+  }
+  
+  return {
+    score,
+    feedback,
+    strengths,
+    improvements,
+    needsClarification,
+    clarificationQuestion,
+    analysis,
+    extractedTopics,
+    sentiment,
+    complexity,
+    suggestedFollowUp,
+    answerSummary: generateAnswerSummary(answer)
+  };
 }
 
-// VALIDATE FOLLOW-UP QUESTION
-function validateFollowUpQuestion(followUpQuestion: any, answer: string, followUpCount: number, score: number): string | null {
-  // Don't ask follow-up if we've reached the limit or score is high
-  if (followUpCount >= 3 || score >= 75) {
-    return null;
+// ========== DYNAMIC FOLLOW-UP GENERATION ==========
+function generateDynamicFollowUp(
+  question: string,
+  answer: string,
+  quality: AnswerQuality,
+  context: ProfileContext,
+  memory: ConversationEntry[],
+  intent: UserIntent
+): string {
+  const recentQuestions = memory.slice(-3).map(m => m.question);
+  
+  // If user requested a specific topic, ask about that topic
+  if (intent.type === 'topic-request' && intent.topic) {
+    const topic = intent.topic;
+    const topicQuestions = generateTopicSpecificQuestions(topic, context, recentQuestions);
+    if (topicQuestions.length > 0) {
+      return topicQuestions[0];
+    }
   }
   
-  // If no follow-up question provided but we should ask one
-  if (!followUpQuestion && followUpCount < 3 && score < 70 && answer.length > 10) {
-    return generateContextualFollowUp(answer, '', followUpCount);
+  // Use extracted topics from the answer to generate relevant follow-up
+  if (quality.extractedTopics && quality.extractedTopics.length > 0) {
+    const mainTopic = quality.extractedTopics[0];
+    const topicQuestions = generateTopicSpecificQuestions(mainTopic, context, recentQuestions);
+    if (topicQuestions.length > 0) {
+      return topicQuestions[0];
+    }
   }
   
-  // Validate existing follow-up question
-  if (followUpQuestion) {
-    // Ensure it's a complete sentence
-    if (typeof followUpQuestion !== 'string' || 
-        !followUpQuestion.trim().endsWith('?') ||
-        followUpQuestion.length < 10) {
-      return generateContextualFollowUp(answer, '', followUpCount);
+  // Generate follow-up based on answer characteristics
+  const answerLower = answer.toLowerCase();
+  const wordCount = answer.split(/\s+/).length;
+  
+  // Handle short answers
+  if (wordCount < 15) {
+    const shortAnswerFollowUps = [
+      "Could you elaborate on that with more details?",
+      "What specifically about that interests you?",
+      "Can you give me an example to illustrate your point?",
+      "How would you apply that in a practical situation?",
+      "What led you to that perspective?"
+    ];
+    
+    const filtered = shortAnswerFollowUps.filter(q => !isQuestionSimilar(q, recentQuestions));
+    if (filtered.length > 0) return filtered[0];
+  }
+  
+  // Handle answers that mention specific skills or tools
+  if (context.skills.length > 0) {
+    for (const skill of context.skills) {
+      if (answerLower.includes(skill.toLowerCase())) {
+        const skillQuestions = [
+          `You mentioned ${skill}. Can you tell me about a project where you used this?`,
+          `How has your experience with ${skill} evolved over time?`,
+          `What's the most challenging aspect of working with ${skill}?`,
+          `How do you stay updated with the latest developments in ${skill}?`,
+          `Can you give me an example of how ${skill} helped solve a difficult problem?`
+        ];
+        
+        const filtered = skillQuestions.filter(q => !isQuestionSimilar(q, recentQuestions));
+        if (filtered.length > 0) return filtered[0];
+      }
+    }
+  }
+  
+  // Generate question based on answer sentiment
+  if (quality.sentiment === 'positive') {
+    const positiveQuestions = [
+      "That sounds like a positive experience. What contributed most to that success?",
+      "Great to hear about that achievement. What did you learn from that experience?",
+      "Interesting positive outcome. How would you apply those lessons in a different context?"
+    ];
+    
+    const filtered = positiveQuestions.filter(q => !isQuestionSimilar(q, recentQuestions));
+    if (filtered.length > 0) return filtered[0];
+  }
+  
+  if (quality.sentiment === 'negative') {
+    const constructiveQuestions = [
+      "That sounds challenging. How did you work through that situation?",
+      "What would you do differently if you faced a similar challenge now?",
+      "How did that experience help you grow professionally?"
+    ];
+    
+    const filtered = constructiveQuestions.filter(q => !isQuestionSimilar(q, recentQuestions));
+    if (filtered.length > 0) return filtered[0];
+  }
+  
+  // Default contextual follow-ups
+  const defaultFollowUps = [
+    "Could you elaborate on that with a specific example from your experience?",
+    "How would you apply this approach in a completely different situation?",
+    "What other factors should be considered that you haven't mentioned yet?",
+    "How has this perspective influenced your decision-making in other areas?",
+    "What would you do differently if you faced a similar situation now?"
+  ];
+  
+  const filtered = defaultFollowUps.filter(q => !isQuestionSimilar(q, recentQuestions));
+  return filtered.length > 0 ? filtered[0] : defaultFollowUps[0];
+}
+
+// ========== TOPIC-SPECIFIC QUESTION GENERATION ==========
+function generateTopicSpecificQuestions(
+  topic: string,
+  context: ProfileContext,
+  recentQuestions: string[]
+): string[] {
+  const topicLower = topic.toLowerCase();
+  
+  // Enhanced topic questions database
+  const topicQuestions: Record<string, string[]> = {
+    'dancing': [
+      "What style of dancing interests you the most, and what draws you to it?",
+      "How does dancing contribute to personal expression and creativity?",
+      "What health benefits have you experienced or observed from dancing?",
+      "How has dancing evolved as an art form throughout history?",
+      "What role does dancing play in different cultures around the world?"
+    ],
+    'mountains': [
+      "What's the first thing that comes to mind when you think about mountains, and is there a specific aspect of them that you find particularly fascinating?",
+      "Have you ever visited any mountains that left a lasting impression on you?",
+      "What do you think mountains teach us about perseverance and overcoming challenges?",
+      "How do mountains influence weather patterns and ecosystems in their surrounding areas?",
+      "What safety considerations are important when exploring mountainous regions?"
+    ],
+    'college life': [
+      "What was your favorite part about college life that made it stand out for you?",
+      "How did your college experiences shape your approach to learning and problem-solving?",
+      "What's one lesson from college that you still apply in your professional life today?",
+      "What advice would you give to someone starting their college journey?",
+      "How do you think college prepares people for real-world challenges?"
+    ],
+    'farming': [
+      "What aspects of farming interest you most - is it the agricultural science, sustainability, or business side?",
+      "How do you think modern technology is changing traditional farming practices?",
+      "What challenges do you think farmers face today that most people don't know about?",
+      "How does sustainable farming contribute to environmental conservation?",
+      "What innovations in farming do you find most exciting?"
+    ],
+    'python': [
+      "What Python projects have you worked on and what challenges did you face?",
+      "How do you approach debugging complex issues in Python?",
+      "What Python libraries or frameworks do you find most useful and why?"
+    ],
+    'mathematics': [
+      "How do you apply mathematical thinking to professional problems?",
+      "What mathematical concepts have been most valuable in your work?",
+      "Can you give an example of using mathematical modeling for decision-making?"
+    ]
+  };
+  
+  // Get questions for specific topic or generate generic ones
+  let questions: string[] = [];
+  
+  // Check for exact match
+  if (topicQuestions[topicLower]) {
+    questions = topicQuestions[topicLower];
+  } else {
+    // Check for partial matches
+    for (const [key, qs] of Object.entries(topicQuestions)) {
+      if (topicLower.includes(key) || key.includes(topicLower)) {
+        questions = qs;
+        break;
+      }
     }
     
-    return followUpQuestion.trim();
+    // If no match, generate generic topic questions
+    if (questions.length === 0) {
+      questions = [
+        `What interests you most about ${topic}?`,
+        `How does ${topic} relate to your personal or professional experiences?`,
+        `What's one surprising thing you've learned about ${topic}?`,
+        `How has your perspective on ${topic} changed over time?`,
+        `What challenges or opportunities do you see in the field of ${topic}?`
+      ];
+    }
   }
   
-  return null;
+  // Filter out recently asked questions
+  return questions.filter(q => !isQuestionSimilar(q, recentQuestions));
 }
 
-// ENHANCED: POOR QUALITY RESPONSE ANALYSIS
-function generatePoorQualityResponseAnalysis(body: any, answerType: string) {
-  const answer = body.answer || '';
-  const followUpCount = body.followUpCount || 0;
-  const shouldAskFollowUp = followUpCount < 3;
+// ========== HELPER FUNCTIONS ==========
+function generateClarificationQuestion(
+  question: string,
+  context: ProfileContext,
+  memory: ConversationEntry[],
+  topics: string[]
+): string {
+  const recentQuestions = memory.slice(-2).map(m => m.question);
   
-  let detailedFeedback = '';
-  let interviewerResponse = '';
-  let followUpQuestion = null;
-
-  // Different responses based on answer type
-  switch (answerType) {
-    case 'gibberish':
-      detailedFeedback = "Your response appears to be incomplete or unclear. In professional interviews, it's important to provide thoughtful, relevant answers that demonstrate your knowledge and experience.";
-      interviewerResponse = "I notice your response was unclear. Could you provide a proper answer to the question?";
-      followUpQuestion = shouldAskFollowUp ? "Could you please provide a clear and detailed response to the question about your experience?" : null;
-      break;
-      
-    case 'test-input':
-      detailedFeedback = "It seems like you may be testing the system. For a realistic interview practice, please provide genuine responses that demonstrate your actual knowledge and experience.";
-      interviewerResponse = "This appears to be a test input. For meaningful interview practice, please provide a real answer based on your experience.";
-      followUpQuestion = shouldAskFollowUp ? "Could you provide a genuine response about your experience with this topic?" : null;
-      break;
-      
-    case 'too-short':
-      detailedFeedback = "Your response was quite brief. In professional settings, it's important to provide comprehensive answers with specific examples from your experience.";
-      interviewerResponse = "Could you provide a more detailed answer to the question?";
-      followUpQuestion = shouldAskFollowUp ? "What specific experience do you have with this topic? Please provide an example." : null;
-      break;
-      
-    default:
-      detailedFeedback = "Your response needs more detail and specificity to properly assess your experience.";
-      interviewerResponse = "Could you elaborate on your answer with more specific details?";
-      followUpQuestion = shouldAskFollowUp ? "Could you provide a specific example that illustrates your experience?" : null;
-  }
-
-  return {
-    score: 25,
-    contentScore: 20,
-    behavioralScore: 30,
-    voiceScore: 25,
-    strengths: ['Willingness to participate'],
-    improvements: ['Provide meaningful, relevant responses', 'Focus on answering the specific question asked'],
-    suggestions: [
-      'Take a moment to think before answering',
-      'Provide specific examples from your experience',
-      'Address the question directly with relevant information'
-    ],
-    skillAssessment: {
-      'Communication': 25,
-      'Problem Solving': 20,
-      'Technical Knowledge': 20,
-      'Confidence': 30,
-      'Professionalism': 25
-    },
-    detailedFeedback,
-    confidenceLevel: 25,
-    interviewerResponse,
-    correctedAnswer: "A better response would directly address the question with specific examples from your experience and clear explanations.",
-    expectedAnswer: "An ideal answer would demonstrate your expertise through specific examples, show your thought process, and provide relevant details.",
-    followUpQuestion
-  };
-}
-
-// ENHANCED: CONTEXTUAL FALLBACK ANALYSIS
-function generateContextualFallbackAnalysis(body: any) {
-  const answer = body.answer || '';
-  const question = body.question || '';
-  const followUpCount = body.followUpCount || 0;
-  const score = calculateBasicScore(answer);
-  
-  // Generate contextual follow-up based on actual answer content
-  const contextualFollowUp = generateContextualFollowUp(answer, question, followUpCount);
-  const shouldAskFollowUp = followUpCount < 3 && score < 70;
-
-  return {
-    score: score,
-    contentScore: score,
-    behavioralScore: Math.max(40, score - 10),
-    voiceScore: Math.max(40, score - 5),
-    strengths: getContextualStrengths(answer),
-    improvements: getContextualImprovements(answer),
-    suggestions: getContextualSuggestions(answer),
-    skillAssessment: {
-      'Communication': score,
-      'Problem Solving': Math.max(40, score - 5),
-      'Technical Knowledge': score,
-      'Confidence': Math.max(40, score - 10),
-      'Professionalism': Math.max(40, score - 5)
-    },
-    detailedFeedback: generateContextualFeedback(score, answer, question),
-    confidenceLevel: score,
-    interviewerResponse: generateInterviewerResponse(score, answer, contextualFollowUp),
-    correctedAnswer: generateCorrectedAnswer(answer),
-    expectedAnswer: "An ideal response demonstrates expertise through specific examples, shows problem-solving methodology, and highlights relevant outcomes.",
-    followUpQuestion: shouldAskFollowUp ? contextualFollowUp : null
-  };
-}
-
-// CALCULATE BASIC SCORE
-function calculateBasicScore(answer: string): number {
-  const wordCount = answer.split(/\s+/).length;
-  let score = 40; // Base score for any attempt
-  
-  if (wordCount > 100) score += 25;
-  else if (wordCount > 50) score += 20;
-  else if (wordCount > 25) score += 15;
-  else if (wordCount > 10) score += 10;
-  
-  // Bonus for quality indicators
-  if (answer.includes('example')) score += 10;
-  if (answer.includes('because')) score += 5;
-  if (/\d+%|\d+ years|\d+ projects/i.test(answer)) score += 10;
-  
-  return Math.min(85, score);
-}
-
-// ENHANCED: CONTEXTUAL FOLLOW-UP GENERATION
-function generateContextualFollowUp(answer: string, question: string, followUpCount: number): string {
-  const lowerAnswer = answer.toLowerCase();
-  const lowerQuestion = question.toLowerCase();
-  
-  // If answer is very short, ask for elaboration
-  if (answer.length < 20) {
-    return "Could you provide a more detailed explanation of your experience with this?";
+  if (topics.length > 0) {
+    const topic = topics[0];
+    const questions = [
+      `Could you elaborate more on ${topic}?`,
+      `What specifically about ${topic} would you like to discuss?`,
+      `How does ${topic} relate to your experience?`
+    ];
+    
+    const filtered = questions.filter(q => !isQuestionSimilar(q, recentQuestions));
+    if (filtered.length > 0) return filtered[0];
   }
   
-  // If answer mentions specific terms, ask about them
-  if (lowerAnswer.includes('project') || lowerAnswer.includes('worked on')) {
-    return "Could you tell me more about your specific role and contributions to that project?";
-  }
-  
-  if (lowerAnswer.includes('team') || lowerAnswer.includes('colleagues')) {
-    return "What was your specific role in the team and how did you collaborate with others?";
-  }
-  
-  if (lowerAnswer.includes('result') || lowerAnswer.includes('achieved') || lowerAnswer.includes('improved')) {
-    return "Could you share specific metrics or outcomes that demonstrate those results?";
-  }
-  
-  if (lowerAnswer.includes('challenge') || lowerAnswer.includes('difficult') || lowerAnswer.includes('problem')) {
-    return "What were the main obstacles you faced and how did you overcome them?";
-  }
-  
-  if (lowerAnswer.includes('learned') || lowerAnswer.includes('improved') || lowerAnswer.includes('developed')) {
-    return "How have you applied what you learned from that experience in other situations?";
-  }
-  
-  // Question-specific follow-ups
-  if (lowerQuestion.includes('example') || lowerQuestion.includes('specific')) {
-    return "Could you walk me through a concrete example that demonstrates this approach?";
-  }
-  
-  if (lowerQuestion.includes('experience') || lowerQuestion.includes('background')) {
-    return "What specific skills or knowledge did you gain from that experience?";
-  }
-  
-  // Vary follow-ups based on count to avoid repetition
-  const variedFollowUps = [
-    "Could you provide more details about how you implemented this approach?",
-    "What was your thought process behind that particular method?",
-    "Could you give me a specific instance where you applied this knowledge?",
-    "What factors influenced your decision to use that approach?",
-    "How would you apply this differently in a new situation?"
+  const clarifications = [
+    "Could you explain your thinking process in more detail?",
+    "What's your approach to this type of situation?",
+    "Can you provide a specific example to illustrate your point?",
+    "How would you apply this in a practical scenario?"
   ];
   
-  return variedFollowUps[followUpCount % variedFollowUps.length];
+  return clarifications[Math.floor(Math.random() * clarifications.length)];
 }
 
-// CONTEXTUAL STRENGTHS BASED ON ANSWER CONTENT
-function getContextualStrengths(answer: string): string[] {
-  const lowerAnswer = answer.toLowerCase();
-  const strengths = ['Engaged with the question'];
+function checkForRepetition(answer: string, memory: ConversationEntry[]): boolean {
+  if (!answer || memory.length < 2) return false;
   
-  if (answer.length > 50) strengths.push('Provided detailed response');
-  if (lowerAnswer.includes('because') || lowerAnswer.includes('reason')) strengths.push('Showed reasoning');
-  if (lowerAnswer.includes('example') || lowerAnswer.includes('for instance')) strengths.push('Used examples');
+  const answerWords = answer.toLowerCase().split(/\s+/).filter(w => w.length > 3);
   
-  return strengths;
+  for (let i = Math.max(0, memory.length - 2); i < memory.length - 1; i++) {
+    const prevAnswer = memory[i]?.answer?.toLowerCase() || '';
+    const prevWords = prevAnswer.split(/\s+/).filter(w => w.length > 3);
+    
+    const commonWords = answerWords.filter(word => prevWords.includes(word));
+    
+    if (commonWords.length > (answerWords.length * 0.4)) {
+      return true;
+    }
+  }
+  
+  return false;
 }
 
-// CONTEXTUAL IMPROVEMENTS BASED ON ANSWER CONTENT
-function getContextualImprovements(answer: string): string[] {
-  const improvements = ['Provide more specific examples'];
+function isQuestionSimilar(question: string, compareQuestions: string[]): boolean {
+  if (!question || compareQuestions.length === 0) return false;
   
-  if (answer.length < 50) improvements.push('Elaborate with more detail');
-  if (!/\d/.test(answer)) improvements.push('Include measurable results when possible');
-  if (!answer.includes('example')) improvements.unshift('Add concrete examples from experience');
+  const qLower = question.toLowerCase();
   
-  return improvements;
+  for (const compare of compareQuestions) {
+    if (!compare) continue;
+    
+    if (qLower === compare.toLowerCase()) return true;
+    
+    const qWords = qLower.split(/\s+/).filter(w => w.length > 3);
+    const cWords = compare.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+    
+    const commonWords = qWords.filter(w => cWords.includes(w));
+    if (commonWords.length >= 2) {
+      return true;
+    }
+  }
+  
+  return false;
 }
 
-// CONTEXTUAL SUGGESTIONS
-function getContextualSuggestions(answer: string): string[] {
-  return [
-    'Use the STAR method (Situation, Task, Action, Result)',
-    'Include concrete examples from your experience',
-    'Connect your answer directly to the role requirements',
-    'Provide measurable outcomes when possible'
+function generateAnswerSummary(answer: string): string {
+  if (!answer || answer.length < 10) return "Short or no answer provided";
+  
+  const words = answer.split(/\s+/);
+  if (words.length <= 15) return words.join(' ');
+  
+  // Take first 15 words for summary
+  return words.slice(0, 15).join(' ') + '...';
+}
+
+function fallbackResponse() {
+  const fallbackQuestions = [
+    "Could you tell me about a challenging project you worked on and how you approached it?",
+    "How do you typically handle learning new skills or technologies?",
+    "What professional achievement are you most proud of and why?",
+    "How do you approach problem-solving in unfamiliar situations?",
+    "Can you describe a time when you had to adapt to significant change at work?"
   ];
-}
-
-// CONTEXTUAL FEEDBACK
-function generateContextualFeedback(score: number, answer: string, question: string): string {
-  if (score >= 70) {
-    return "Your response was comprehensive and addressed the key points well. You provided good context and reasoning for your approach.";
-  } else if (score >= 50) {
-    return "You've made a good attempt at answering the question. To strengthen your response, try to include more specific examples and measurable outcomes from your experience.";
-  } else {
-    return "Your response needs more detail and specificity. In professional interviews, it's important to provide comprehensive answers with concrete examples from your experience.";
-  }
-}
-
-// CONTEXTUAL INTERVIEWER RESPONSE
-function generateInterviewerResponse(score: number, answer: string, followUpQuestion: string | null): string {
-  if (followUpQuestion) {
-    return `Thank you for your response. ${followUpQuestion}`;
-  } else {
-    return "Thank you for your answer. Let's continue with the next question.";
-  }
-}
-
-// CONTEXTUAL CORRECTED ANSWER
-function generateCorrectedAnswer(answer: string): string {
-  if (answer.length < 30) {
-    return "An improved answer would be more detailed and include specific examples from your experience, your thought process, and measurable outcomes.";
-  } else {
-    return "To strengthen your answer, include more specific examples, measurable results, and a clearer connection between your experience and the question asked.";
-  }
-}
-
-// REPETITION RESPONSE ANALYSIS
-function generateRepetitionResponseAnalysis(body: any) {
-  return {
-    score: 40,
-    contentScore: 40,
-    behavioralScore: 50,
-    voiceScore: 45,
-    strengths: ['Asked for clarification'],
-    improvements: ['Try to answer based on your understanding', 'Provide your perspective even if uncertain'],
-    suggestions: [
-      'Take your best attempt at answering based on your understanding',
-      'Ask specific questions about parts you need clarification on',
-      'Provide your perspective while acknowledging any uncertainties'
-    ],
-    skillAssessment: {
-      'Communication': 45,
-      'Problem Solving': 40,
-      'Technical Knowledge': 40,
-      'Confidence': 35,
-      'Professionalism': 50
-    },
-    detailedFeedback: "I understand you'd like me to repeat the question. It's better to provide your best attempt at an answer, even if you're not completely certain. You can ask for clarification on specific parts if needed.",
-    confidenceLevel: 40,
-    interviewerResponse: "Of course. The question was: " + (body.question || 'Not available') + ". Please take your time to think about your response.",
-    correctedAnswer: "A better approach would be to provide your understanding of the question and your perspective, while asking for clarification on specific points if needed.",
-    expectedAnswer: "An ideal response demonstrates your thought process and provides your perspective, even when uncertain about some details.",
-    followUpQuestion: null
-  };
-}
-
-// EMPTY RESPONSE ANALYSIS
-function generateEmptyResponseAnalysis(body: any) {
-  const followUpCount = body.followUpCount || 0;
-  const shouldAskFollowUp = followUpCount < 2;
+  
+  const question = fallbackQuestions[Math.floor(Math.random() * fallbackQuestions.length)];
   
   return {
-    score: 30,
-    contentScore: 30,
-    behavioralScore: 40,
-    voiceScore: 30,
-    strengths: ['Willingness to attempt the question'],
-    improvements: ['Provide a more detailed response', 'Share specific examples from your experience'],
-    suggestions: [
-      'Try to provide at least 2-3 sentences in your response',
-      'Include specific examples from your work experience',
-      'Use the STAR method for behavioral questions'
-    ],
-    skillAssessment: {
-      'Communication': 30,
-      'Problem Solving': 30,
-      'Technical Knowledge': 30,
-      'Confidence': 35,
-      'Professionalism': 40
-    },
-    detailedFeedback: "Your response was quite brief. For interview questions, it's important to provide comprehensive answers with specific examples from your experience.",
-    confidenceLevel: 30,
-    interviewerResponse: "I appreciate your attempt. Could you provide more detail about your experience with this topic?",
-    correctedAnswer: "A better response would include specific examples from your experience, your thought process in approaching similar situations, and the outcomes or results of your actions.",
-    expectedAnswer: "An ideal answer would demonstrate your expertise through specific examples, show your problem-solving methodology, and highlight relevant outcomes.",
-    followUpQuestion: shouldAskFollowUp ? "Could you elaborate on your experience with this topic? Please provide a specific example." : null
+    score: 65,
+    contentScore: 65,
+    detailedFeedback: "Let's continue our conversation to better understand your perspective.",
+    interviewerResponse: question,
+    strengths: ['Willingness to engage'],
+    improvements: ['Provide more specific examples'],
+    hasFollowUp: true,
+    followUpQuestion: question,
+    feedbackQuestion: question,
+    analysis: 'Using fallback response.',
+    extractedTopics: [],
+    sentiment: 'neutral',
+    complexity: 'medium',
+    aiAnalyzed: false,
+    answerSummary: 'Using fallback response',
+    timestamp: Date.now(),
+    question: question,
+    feedback: "Let's continue our conversation to better understand your perspective.",
+    nextQuestion: question
   };
-}
-
-// ERROR ANALYSIS
-function generateErrorAnalysis(message: string) {
-  return {
-    score: 50,
-    contentScore: 50,
-    behavioralScore: 50,
-    voiceScore: 50,
-    strengths: ['Participation in the interview'],
-    improvements: ['Continue providing detailed responses'],
-    suggestions: ['Include specific examples', 'Provide measurable results'],
-    skillAssessment: {
-      'Communication': 50,
-      'Problem Solving': 50,
-      'Technical Knowledge': 50,
-      'Confidence': 50,
-      'Professionalism': 50
-    },
-    detailedFeedback: "Thank you for your participation in this interview.",
-    confidenceLevel: 50,
-    interviewerResponse: "Thank you for your response. Let's continue with the interview.",
-    correctedAnswer: "Continue to provide specific examples and measurable outcomes.",
-    expectedAnswer: "Ideal responses demonstrate expertise through examples and clear reasoning.",
-    followUpQuestion: null
-  };
-}
-
-// GENERATE FEEDBACK (for validateAndFixAnalysis)
-function generateFeedback(score: number, answerLength: number, answer: string): string {
-  if (score >= 70) {
-    return "Your response was comprehensive and addressed the key points well. You provided good context and reasoning.";
-  } else if (score >= 50) {
-    return "You've made a good attempt at answering the question. To strengthen your response, try to include more specific examples and measurable outcomes.";
-  } else {
-    return "Your response was quite brief. In professional settings, it's important to provide comprehensive answers with specific examples from your experience.";
-  }
 }
