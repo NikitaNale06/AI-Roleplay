@@ -11,12 +11,14 @@ import React, {
 
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import {
-  VRM,
-  VRMUtils,
-  VRMLoaderPlugin
-} from '@pixiv/three-vrm';
+import { VRM, VRMUtils } from '@pixiv/three-vrm';
 import { VRMAnimationManager } from './VRMAnimationManager';
+
+// Use a dynamic import or require for VRMLoaderPlugin
+// @ts-ignore - Temporary fix for VRMLoaderPlugin
+const VRMLoaderPlugin = typeof window !== 'undefined' 
+  ? require('@pixiv/three-vrm').VRMLoaderPlugin 
+  : null;
 
 export interface VRMAvatarHandle {
   speak: (text: string, utterance: SpeechSynthesisUtterance, emotion?: string) => Promise<void>;
@@ -60,7 +62,7 @@ const VRMAvatar = memo(forwardRef<VRMAvatarHandle, Props>(
       scene.background = null;
       sceneRef.current = scene;
 
-      // ---------------- CAMERA (UNCHANGED) ----------------
+      // ---------------- CAMERA ----------------
       const width = canvasRef.current.clientWidth;
       const height = canvasRef.current.clientHeight;
 
@@ -71,13 +73,11 @@ const VRMAvatar = memo(forwardRef<VRMAvatarHandle, Props>(
         100
       );
 
-      // EXACT SAME POSITION (NO CHANGE)
       camera.position.set(0, 1.4, 1.8);
       camera.lookAt(0, 1.4, 0);
-
       cameraRef.current = camera;
 
-      // ---------------- RENDERER (UNCHANGED) ----------------
+      // ---------------- RENDERER ----------------
       const renderer = new THREE.WebGLRenderer({
         canvas: canvasRef.current,
         alpha: true,
@@ -86,11 +86,10 @@ const VRMAvatar = memo(forwardRef<VRMAvatarHandle, Props>(
 
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       renderer.setSize(width, height, false);
-
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       rendererRef.current = renderer;
 
-      // ---------------- LIGHTS (UNCHANGED) ----------------
+      // ---------------- LIGHTS ----------------
       scene.add(new THREE.AmbientLight(0xffffff, 0.7));
 
       const mainLight = new THREE.DirectionalLight(0xffffff, 1.2);
@@ -107,25 +106,37 @@ const VRMAvatar = memo(forwardRef<VRMAvatarHandle, Props>(
 
       // ---------------- LOAD VRM ----------------
       const loader = new GLTFLoader();
-      loader.register((parser) => new VRMLoaderPlugin(parser));
+      
+      // Register VRM plugin with error handling
+      try {
+        // @ts-ignore - Ignore VRMLoaderPlugin type issues
+        const { VRMLoaderPlugin } = require('@pixiv/three-vrm');
+        loader.register((parser) => new VRMLoaderPlugin(parser));
+      } catch (error) {
+        console.error('Failed to load VRMLoaderPlugin:', error);
+      }
 
       loader.load(vrmUrl, (gltf) => {
         if (!mountedRef.current) return;
 
-        const vrm = (gltf.userData as any).vrm as VRM;
-        if (!vrm) return;
+        // @ts-ignore - VRM type from userData
+        const vrm = gltf.userData.vrm as VRM;
+        if (!vrm) {
+          console.error('No VRM data found in loaded model');
+          return;
+        }
 
-        VRMUtils.removeUnnecessaryJoints(gltf.scene);
-
-        // EXACT SAME ROTATION & POSITION
+      scene.add(vrm.scene as any);
+        // Position and rotate the model
         vrm.scene.rotation.y = Math.PI;
         vrm.scene.position.y = -0.3;
 
-        scene.add(vrm.scene);
+        // Fix type issue by casting to any
+        scene.add(vrm.scene as unknown as THREE.Scene);
         vrmRef.current = vrm;
 
+        // Initialize animation manager
         animationManagerRef.current = new VRMAnimationManager(vrm);
-        animationManagerRef.current.captureNeutralPose();
 
         if (!hasLoadedRef.current) {
           hasLoadedRef.current = true;
@@ -152,12 +163,12 @@ const VRMAvatar = memo(forwardRef<VRMAvatarHandle, Props>(
         leftLowerArm?.rotation.set(0, 0, 0);
         rightLowerArm?.rotation.set(0, 0, 0);
 
-        // 🔥 NATURAL INTERVIEWER POSE
+        // NATURAL INTERVIEWER POSE
         leftUpperArm.rotation.z = 1.2;
         rightUpperArm.rotation.z = -1.2;
 
-        leftLowerArm!.rotation.x = -0.1;
-        rightLowerArm!.rotation.x = -0.1;
+        if (leftLowerArm) leftLowerArm.rotation.x = -0.1;
+        if (rightLowerArm) rightLowerArm.rotation.x = -0.1;
       };
 
       // ---------------- ANIMATION LOOP ----------------
@@ -170,8 +181,6 @@ const VRMAvatar = memo(forwardRef<VRMAvatarHandle, Props>(
 
         if (vrmRef.current) {
           vrmRef.current.update(delta);
-
-          // Apply pose AFTER update
           applyNaturalPose();
         }
 
@@ -197,65 +206,57 @@ const VRMAvatar = memo(forwardRef<VRMAvatarHandle, Props>(
 
     }, [vrmUrl, onLoaded]);
 
-    // ---------------- SPEAK / EMOTION (UNCHANGED) ----------------
-   useImperativeHandle(ref, () => ({
-  async speak(
-  text: string,
-  utterance: SpeechSynthesisUtterance,
-  emotion = 'neutral'
-) {
-  return new Promise<void>((resolve) => {
+    // ---------------- SPEAK / EMOTION ----------------
+    useImperativeHandle(ref, () => ({
+      async speak(
+        text: string,
+        utterance: SpeechSynthesisUtterance,
+        emotion = 'neutral'
+      ) {
+        return new Promise<void>((resolve) => {
+          if (!animationManagerRef.current) {
+            resolve();
+            return;
+          }
 
-    if (!animationManagerRef.current) {
-      resolve();
-      return;
-    }
+          animationManagerRef.current.setEmotion(emotion);
 
-    animationManagerRef.current.setEmotion(emotion);
+          let lipSyncInterval: NodeJS.Timeout | null = null;
 
-    let lipSyncInterval: NodeJS.Timeout | null = null;
+          utterance.onstart = () => {
+            console.log("🗣️ Avatar speech started");
+            lipSyncInterval = setInterval(() => {
+              animationManagerRef.current?.randomMouthMovement();
+            }, 120);
+          };
 
-    utterance.onstart = () => {
-      console.log("🗣️ Avatar speech started");
+          utterance.onend = () => {
+            console.log("✅ Avatar speech ended");
+            if (lipSyncInterval) clearInterval(lipSyncInterval);
+            animationManagerRef.current?.resetMouth();
+            resolve();
+          };
 
-      // 🔥 Continuous natural lip movement while speaking
-      lipSyncInterval = setInterval(() => {
-        animationManagerRef.current?.randomMouthMovement();
-      }, 120); // update every 120ms
-    };
+          utterance.onerror = (event) => {
+            console.warn("Speech error:", event);
+            if (lipSyncInterval) clearInterval(lipSyncInterval);
+            animationManagerRef.current?.resetMouth();
+            resolve();
+          };
 
-    utterance.onend = () => {
-      console.log("✅ Avatar speech ended");
+          window.speechSynthesis.speak(utterance);
+        });
+      },
 
-      if (lipSyncInterval) clearInterval(lipSyncInterval);
+      stopSpeaking() {
+        animationManagerRef.current?.stopLipSync();
+        window.speechSynthesis.cancel();
+      },
 
-      animationManagerRef.current?.resetMouth();
-      resolve();
-    };
-
-    utterance.onerror = (event) => {
-      console.warn("Speech error:", event);
-
-      if (lipSyncInterval) clearInterval(lipSyncInterval);
-
-      animationManagerRef.current?.resetMouth();
-      resolve();
-    };
-
-    window.speechSynthesis.speak(utterance);
-  });
-},
-
-  stopSpeaking() {
-    animationManagerRef.current?.stopLipSync();
-    window.speechSynthesis.cancel();
-  },
-
-  setEmotion(emotion: string) {
-    animationManagerRef.current?.setEmotion(emotion);
-  }
-}));
-
+      setEmotion(emotion: string) {
+        animationManagerRef.current?.setEmotion(emotion);
+      }
+    }));
 
     return (
       <div className={`relative w-full h-full ${className}`}>
