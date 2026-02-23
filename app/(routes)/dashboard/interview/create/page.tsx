@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { 
   ArrowLeft, 
@@ -203,7 +203,8 @@ function GamingBackground() {
   );
 }
 
-const InterviewCreatePage = () => {
+// Main component that uses useSearchParams
+function CreateInterviewContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
@@ -1287,6 +1288,45 @@ const InterviewCreatePage = () => {
       </div>
     </div>
   );
-};
+}
 
-export default InterviewCreatePage;
+// Loading component for Suspense fallback
+function LoadingFallback() {
+  return (
+    <div className="relative min-h-screen overflow-hidden bg-gradient-to-b from-gray-950 via-purple-950/20 to-gray-950">
+      <div className="absolute inset-0 z-0 overflow-hidden bg-gradient-to-b from-gray-950 via-purple-950/30 to-gray-950">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-purple-900/10 via-gray-950 to-gray-950"></div>
+      </div>
+      
+      <nav className="relative z-10 flex w-full items-center justify-between bg-gradient-to-r from-gray-900/80 via-purple-900/50 to-gray-900/80 backdrop-blur-sm px-6 py-3 border-b border-white/10">
+        <div className="flex items-center gap-3">
+          <div className="relative h-7 w-7">
+            <div className="absolute inset-0 animate-ping rounded-full bg-blue-500/30"></div>
+            <div className="relative h-7 w-7 rounded-full bg-gradient-to-br from-blue-400 to-purple-500"></div>
+          </div>
+          <h1 className="bg-gradient-to-r from-blue-300 to-purple-300 bg-clip-text text-lg font-bold text-transparent">
+            AI ROLEPLAY
+          </h1>
+        </div>
+      </nav>
+      
+      <div className="relative z-10 max-w-7xl mx-auto px-4 py-6">
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+            <p className="text-gray-400">Loading assessment creator...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Main page component with Suspense boundary
+export default function InterviewCreatePage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <CreateInterviewContent />
+    </Suspense>
+  );
+}
