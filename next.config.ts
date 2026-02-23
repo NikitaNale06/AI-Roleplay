@@ -1,12 +1,19 @@
+import type { NextConfig } from 'next'
+import type { Configuration as WebpackConfig } from 'webpack'
+
 /** @type {import('next').NextConfig} */
 
-const nextConfig = {
+const nextConfig: NextConfig = {
   // Add this for static export
   trailingSlash: true,
   images: {
     unoptimized: true
   },
-  webpack: (config: import('webpack').Configuration) => {
+  
+  // Add empty turbopack config to fix build error
+  turbopack: {},
+  
+  webpack: (config: WebpackConfig) => {
     // Handle the binary files
     config.resolve = {
       ...config.resolve,
