@@ -1,785 +1,497 @@
-// app/api/generate-questions/route.ts
-
-/* media pipe
 import { NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 
-// Define interfaces
-interface QuestionRequest {
-  jobTitle: string;
-  jobDescription: string;
-  companyName?: string;
-  experience: string;
+interface GenerateRequest {
+  assessmentType: string;
+  title: string;
   skills: string[];
-  resumeText?: string;
-  fieldCategory?: string;
-  generateFieldSpecific?: boolean;
+  fieldCategory: string;
+  difficulty: string;
+  questions?: number;
 }
 
-interface GeneratedQuestion {
-  id: string;
-  question: string;
-  type: 'technical' | 'behavioral' | 'situational' | 'domain-specific';
-  difficulty: 'easy' | 'medium' | 'hard';
-  category: string;
-  timeLimit?: number;
-  fieldRelevant: boolean;
-}
-
-// Generate initial questions for interview setup
-function generateInitialQuestions(requestData: QuestionRequest): GeneratedQuestion[] {
-  const { jobTitle, experience, skills, fieldCategory, jobDescription } = requestData;
-  
-  const isJunior = experience.includes('0-2') || experience.includes('1-3');
-  const isSenior = experience.includes('5+') || experience.includes('8+');
-  
-  const questions: GeneratedQuestion[] = [];
-
-  // Universal opener - always first
-  questions.push({
-    id: `intro-${Date.now()}`,
-    question: `Tell me about your journey as a ${jobTitle}. What initially motivated you to pursue this career path?`,
-    type: 'behavioral',
-    difficulty: 'easy',
-    category: 'Background & Motivation',
-    timeLimit: 180,
-    fieldRelevant: true
-  });
-
-  // Add field-specific questions based on detected category
-  if (fieldCategory?.includes('Government') || fieldCategory?.includes('Civil')) {
-    questions.push(
-      {
-        id: `govt-1-${Date.now()}`,
-        question: `How would you handle a situation where public interest conflicts with political pressures in your role as a ${jobTitle}?`,
-        type: 'situational',
-        difficulty: isSenior ? 'hard' : 'medium',
-        category: 'Ethics & Governance',
-        timeLimit: 240,
-        fieldRelevant: true
-      },
-      {
-        id: `govt-2-${Date.now()}`,
-        question: `Describe a policy initiative you would implement to improve public service delivery in your area of expertise.`,
-        type: 'domain-specific',
-        difficulty: 'medium',
-        category: 'Policy & Implementation',
-        timeLimit: 220,
-        fieldRelevant: true
-      }
-    );
-  } else if (fieldCategory?.includes('Healthcare') || fieldCategory?.includes('Medical')) {
-    questions.push(
-      {
-        id: `medical-1-${Date.now()}`,
-        question: `Describe your approach to making critical medical decisions when you have limited time and incomplete patient information.`,
-        type: 'situational',
-        difficulty: 'medium',
-        category: 'Clinical Decision Making',
-        timeLimit: 200,
-        fieldRelevant: true
-      },
-      {
-        id: `medical-2-${Date.now()}`,
-        question: `How do you stay current with medical research and integrate evidence-based practices into your patient care?`,
-        type: 'domain-specific',
-        difficulty: isJunior ? 'medium' : 'hard',
-        category: 'Medical Knowledge',
-        timeLimit: 180,
-        fieldRelevant: true
-      }
-    );
-  } else if (fieldCategory?.includes('Education')) {
-    questions.push(
-      {
-        id: `education-1-${Date.now()}`,
-        question: `How do you adapt your teaching methods to accommodate students with different learning styles and backgrounds?`,
-        type: 'situational',
-        difficulty: 'medium',
-        category: 'Pedagogical Approach',
-        timeLimit: 200,
-        fieldRelevant: true
-      },
-      {
-        id: `education-2-${Date.now()}`,
-        question: `Describe how you would design a curriculum that balances academic rigor with practical real-world application.`,
-        type: 'domain-specific',
-        difficulty: isSenior ? 'hard' : 'medium',
-        category: 'Curriculum Design',
-        timeLimit: 220,
-        fieldRelevant: true
-      }
-    );
-  } else if (fieldCategory?.includes('Legal')) {
-    questions.push(
-      {
-        id: `legal-1-${Date.now()}`,
-        question: `Walk me through your process for researching and building arguments for a complex legal case.`,
-        type: 'technical',
-        difficulty: 'medium',
-        category: 'Legal Research & Analysis',
-        timeLimit: 240,
-        fieldRelevant: true
-      },
-      {
-        id: `legal-2-${Date.now()}`,
-        question: `How do you balance zealous client advocacy with ethical obligations when these might conflict?`,
-        type: 'situational',
-        difficulty: 'hard',
-        category: 'Legal Ethics',
-        timeLimit: 200,
-        fieldRelevant: true
-      }
-    );
-  } else if (fieldCategory?.includes('Engineering') || fieldCategory?.includes('Technology')) {
-    questions.push(
-      {
-        id: `tech-1-${Date.now()}`,
-        question: `Describe your approach to solving complex technical problems. Walk me through your methodology from problem identification to solution implementation.`,
-        type: 'technical',
-        difficulty: isJunior ? 'medium' : 'hard',
-        category: 'Problem Solving & Design',
-        timeLimit: 240,
-        fieldRelevant: true
-      },
-      {
-        id: `tech-2-${Date.now()}`,
-        question: `How do you stay current with rapidly evolving technology trends, and how do you evaluate new technologies for adoption?`,
-        type: 'domain-specific',
-        difficulty: 'medium',
-        category: 'Technology & Innovation',
-        timeLimit: 180,
-        fieldRelevant: true
-      }
-    );
-  } else {
-    // Generic professional questions for other fields
-    questions.push(
-      {
-        id: `professional-1-${Date.now()}`,
-        question: `Describe the most challenging project you've worked on as a ${jobTitle}. What made it challenging and how did you overcome those obstacles?`,
-        type: 'behavioral',
-        difficulty: 'medium',
-        category: 'Professional Challenges',
-        timeLimit: 200,
-        fieldRelevant: true
-      },
-      {
-        id: `professional-2-${Date.now()}`,
-        question: `How do you measure success in your role, and what strategies do you use to continuously improve your performance?`,
-        type: 'domain-specific',
-        difficulty: 'medium',
-        category: 'Performance & Growth',
-        timeLimit: 180,
-        fieldRelevant: true
-      }
-    );
-  }
-
-  // Add skill-based questions if skills provided
-  if (skills && skills.length > 0) {
-    const primarySkill = skills[0];
-    questions.push({
-      id: `skills-${Date.now()}`,
-      question: `You mentioned ${primarySkill} as one of your key skills. Can you give me a specific example of how you've applied this skill to solve a real problem?`,
-      type: 'behavioral',
-      difficulty: 'medium',
-      category: primarySkill,
-      timeLimit: 180,
-      fieldRelevant: true
-    });
-  }
-
-  // Universal professional questions - always include these
-  questions.push(
-    {
-      id: `teamwork-${Date.now()}`,
-      question: `Tell me about a time when you had to collaborate with difficult team members or stakeholders. How did you handle the situation?`,
-      type: 'behavioral',
-      difficulty: 'medium',
-      category: 'Interpersonal Skills',
-      timeLimit: 180,
-      fieldRelevant: false
-    },
-    {
-      id: `situational-${Date.now()}`,
-      question: `Imagine you're working on a critical project with a tight deadline, but you discover a potential issue that could impact quality. How would you handle this situation?`,
-      type: 'situational',
-      difficulty: 'medium',
-      category: 'Decision Making',
-      timeLimit: 180,
-      fieldRelevant: false
-    }
-  );
-
-  // Leadership question for senior roles
-  if (isSenior || jobTitle.toLowerCase().includes('senior') || 
-      jobTitle.toLowerCase().includes('lead') || 
-      jobTitle.toLowerCase().includes('manager')) {
-    questions.push({
-      id: `leadership-${Date.now()}`,
-      question: `Describe your leadership philosophy and give me an example of how you've mentored or developed team members.`,
-      type: 'behavioral',
-      difficulty: 'hard',
-      category: 'Leadership & Development',
-      timeLimit: 240,
-      fieldRelevant: false
-    });
-  }
-
-  return questions.slice(0, 6); // Return first 6 questions for initial interview
-}
-
-// app/api/generate-questions/route.ts
-export async function POST(req: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    console.log('📝 Starting initial question generation...');
+    const body: GenerateRequest = await request.json();
+    const { 
+      assessmentType = 'general-practice',
+      title = 'Interview Preparation', 
+      skills = [], 
+      fieldCategory = 'General',
+      difficulty = 'medium',
+      questions = 8 
+    } = body;
 
-    const requestData: QuestionRequest = await req.json();
-    console.log('Request data:', {
-      jobTitle: requestData.jobTitle,
-      fieldCategory: requestData.fieldCategory,
-      experience: requestData.experience,
-      skillsCount: requestData.skills?.length || 0,
-      jobDescription: requestData.jobDescription?.substring(0, 100) // Check if this exists
+    console.log('📝 Generating questions for:', { 
+      type: assessmentType, 
+      title, 
+      fieldCategory, 
+      difficulty, 
+      skills 
     });
 
-    const { jobTitle, jobDescription, companyName, experience, skills, fieldCategory } = requestData;
+    // Try to use GROQ API, but have strong fallback
+    const questionsList = await generateQuestionsWithFallback(
+      assessmentType,
+      title,
+      fieldCategory,
+      skills,
+      difficulty,
+      questions
+    );
 
-    // FIXED: Better validation with fallbacks
-    if (!jobTitle) {
-      return NextResponse.json(
-        { error: 'Missing required field: jobTitle' },
-        { status: 400 }
-      );
-    }
-
-    // Create a fallback job description if not provided
-    const actualJobDescription = jobDescription || 
-      `This is a ${jobTitle} position requiring ${experience} of experience. Skills needed: ${skills?.join(', ') || 'various technical skills'}.`;
-
-    let questions: GeneratedQuestion[] = [];
-
-    // Continue with your existing question generation logic...
-    questions = generateInitialQuestions({
-      ...requestData,
-      jobDescription: actualJobDescription
-    });
-
-    console.log(`✅ Generated ${questions.length} initial questions for ${fieldCategory || 'Professional'} field`);
-
+    console.log(`✅ Generated ${questionsList.length} questions for ${assessmentType}`);
+    
     return NextResponse.json({
-      success: true,
-      questions: questions,
-      metadata: {
-        jobTitle,
-        fieldCategory: fieldCategory || 'Professional',
-        experienceLevel: experience,
-        generationMethod: 'Smart-Fallback',
-        questionCount: questions.length
-      }
+      questions: questionsList,
+      assessmentType,
+      fieldCategory,
+      difficulty,
+      count: questionsList.length,
+      generatedAt: new Date().toISOString()
     });
 
   } catch (error: any) {
-    console.error('❌ Server Error:', error);
+    console.error('❌ Error generating questions:', error);
     
-    // Emergency fallback questions
-    const emergencyQuestions: GeneratedQuestion[] = [
-      {
-        id: `emergency-1-${Date.now()}`,
-        question: "Tell me about yourself and your professional background.",
-        type: 'behavioral',
-        difficulty: 'easy',
-        category: 'Introduction',
-        timeLimit: 180,
-        fieldRelevant: false
-      }
-    ];
-
+    // Fallback questions
+    const fallbackQuestions = getFallbackQuestions(
+      'general-practice',
+      'General',
+      [],
+      8
+    );
+    
     return NextResponse.json({
-      success: true,
-      questions: emergencyQuestions,
-      note: 'Emergency fallback questions used due to server error'
+      error: 'Failed to generate questions', 
+      details: error.message,
+      questions: fallbackQuestions,
+      isFallback: true
     });
   }
 }
 
-export async function GET() {
-  return NextResponse.json(
-    { 
-      message: 'Initial Interview Question Generator API',
-      supportedFields: [
-        'Government & Civil Services',
-        'Healthcare & Medical',
-        'Education & Academia',
-        'Legal & Judiciary',
-        'Engineering & Technology',
-        'Management & Leadership',
-        'Sales & Marketing',
-        'Finance & Banking',
-        'And many more...'
-      ],
-      usage: 'Send POST request with jobTitle, jobDescription, experience, skills, and fieldCategory'
-    },
-    { status: 200 }
-  );
-}
-
-*/
-
-
-
-// app/api/generate-questions/route.ts
-import { NextRequest, NextResponse } from 'next/server';
-
-export const runtime = 'nodejs';
-
-// Define interfaces
-interface QuestionRequest {
-  jobTitle: string;
-  jobDescription: string;
-  companyName?: string;
-  experience: string;
-  skills: string[];
-  resumeText?: string;
-  fieldCategory?: string;
-  generateFieldSpecific?: boolean;
-}
-
-interface GeneratedQuestion {
-  id: string;
-  question: string;
-  type: 'technical' | 'behavioral' | 'situational' | 'domain-specific';
-  difficulty: 'easy' | 'medium' | 'hard';
-  category: string;
-  timeLimit?: number;
-  fieldRelevant: boolean;
-}
-
-// Generate initial questions for interview setup
-function generateInitialQuestions(requestData: QuestionRequest): GeneratedQuestion[] {
-  const { jobTitle, experience, skills, fieldCategory, jobDescription } = requestData;
+async function generateQuestionsWithFallback(
+  assessmentType: string,
+  title: string,
+  fieldCategory: string,
+  skills: string[],
+  difficulty: string,
+  count: number
+): Promise<string[]> {
+  const apiKey = process.env.GROQ_API_KEY;
   
-  const isJunior = experience.includes('0-2') || experience.includes('1-3');
-  const isSenior = experience.includes('5+') || experience.includes('8+');
-  
-  const questions: GeneratedQuestion[] = [];
-
-  // Universal opener - always first
-  questions.push({
-    id: `intro-${Date.now()}`,
-    question: `Tell me about your journey as a ${jobTitle}. What initially motivated you to pursue this career path?`,
-    type: 'behavioral',
-    difficulty: 'easy',
-    category: 'Background & Motivation',
-    timeLimit: 180,
-    fieldRelevant: true
-  });
-
-  // Add field-specific questions based on detected category
-  if (fieldCategory?.includes('Government') || fieldCategory?.includes('Civil')) {
-    questions.push(
-      {
-        id: `govt-1-${Date.now()}`,
-        question: `How would you handle a situation where public interest conflicts with political pressures in your role as a ${jobTitle}?`,
-        type: 'situational',
-        difficulty: isSenior ? 'hard' : 'medium',
-        category: 'Ethics & Governance',
-        timeLimit: 240,
-        fieldRelevant: true
-      },
-      {
-        id: `govt-2-${Date.now()}`,
-        question: `Describe a policy initiative you would implement to improve public service delivery in your area of expertise.`,
-        type: 'domain-specific',
-        difficulty: 'medium',
-        category: 'Policy & Implementation',
-        timeLimit: 220,
-        fieldRelevant: true
-      }
-    );
-  } else if (fieldCategory?.includes('Healthcare') || fieldCategory?.includes('Medical')) {
-    questions.push(
-      {
-        id: `medical-1-${Date.now()}`,
-        question: `Describe your approach to making critical medical decisions when you have limited time and incomplete patient information.`,
-        type: 'situational',
-        difficulty: 'medium',
-        category: 'Clinical Decision Making',
-        timeLimit: 200,
-        fieldRelevant: true
-      },
-      {
-        id: `medical-2-${Date.now()}`,
-        question: `How do you stay current with medical research and integrate evidence-based practices into your patient care?`,
-        type: 'domain-specific',
-        difficulty: isJunior ? 'medium' : 'hard',
-        category: 'Medical Knowledge',
-        timeLimit: 180,
-        fieldRelevant: true
-      }
-    );
-  } else if (fieldCategory?.includes('Education')) {
-    questions.push(
-      {
-        id: `education-1-${Date.now()}`,
-        question: `How do you adapt your teaching methods to accommodate students with different learning styles and backgrounds?`,
-        type: 'situational',
-        difficulty: 'medium',
-        category: 'Pedagogical Approach',
-        timeLimit: 200,
-        fieldRelevant: true
-      },
-      {
-        id: `education-2-${Date.now()}`,
-        question: `Describe how you would design a curriculum that balances academic rigor with practical real-world application.`,
-        type: 'domain-specific',
-        difficulty: isSenior ? 'hard' : 'medium',
-        category: 'Curriculum Design',
-        timeLimit: 220,
-        fieldRelevant: true
-      }
-    );
-  } else if (fieldCategory?.includes('Legal')) {
-    questions.push(
-      {
-        id: `legal-1-${Date.now()}`,
-        question: `Walk me through your process for researching and building arguments for a complex legal case.`,
-        type: 'technical',
-        difficulty: 'medium',
-        category: 'Legal Research & Analysis',
-        timeLimit: 240,
-        fieldRelevant: true
-      },
-      {
-        id: `legal-2-${Date.now()}`,
-        question: `How do you balance zealous client advocacy with ethical obligations when these might conflict?`,
-        type: 'situational',
-        difficulty: 'hard',
-        category: 'Legal Ethics',
-        timeLimit: 200,
-        fieldRelevant: true
-      }
-    );
-  } else if (fieldCategory?.includes('Engineering') || fieldCategory?.includes('Technology')) {
-    questions.push(
-      {
-        id: `tech-1-${Date.now()}`,
-        question: `Describe your approach to solving complex technical problems. Walk me through your methodology from problem identification to solution implementation.`,
-        type: 'technical',
-        difficulty: isJunior ? 'medium' : 'hard',
-        category: 'Problem Solving & Design',
-        timeLimit: 240,
-        fieldRelevant: true
-      },
-      {
-        id: `tech-2-${Date.now()}`,
-        question: `How do you stay current with rapidly evolving technology trends, and how do you evaluate new technologies for adoption?`,
-        type: 'domain-specific',
-        difficulty: 'medium',
-        category: 'Technology & Innovation',
-        timeLimit: 180,
-        fieldRelevant: true
-      }
-    );
-  } else {
-    // Generic professional questions for other fields
-    questions.push(
-      {
-        id: `professional-1-${Date.now()}`,
-        question: `Describe the most challenging project you've worked on as a ${jobTitle}. What made it challenging and how did you overcome those obstacles?`,
-        type: 'behavioral',
-        difficulty: 'medium',
-        category: 'Professional Challenges',
-        timeLimit: 200,
-        fieldRelevant: true
-      },
-      {
-        id: `professional-2-${Date.now()}`,
-        question: `How do you measure success in your role, and what strategies do you use to continuously improve your performance?`,
-        type: 'domain-specific',
-        difficulty: 'medium',
-        category: 'Performance & Growth',
-        timeLimit: 180,
-        fieldRelevant: true
-      }
-    );
+  if (!apiKey) {
+    console.warn('⚠️ GROQ_API_KEY not found in environment');
+    return getFallbackQuestions(assessmentType, fieldCategory, skills, count);
   }
 
-  // Add skill-based questions if skills provided
-  if (skills && skills.length > 0) {
-    const primarySkill = skills[0];
-    questions.push({
-      id: `skills-${Date.now()}`,
-      question: `You mentioned ${primarySkill} as one of your key skills. Can you give me a specific example of how you've applied this skill to solve a real problem?`,
-      type: 'behavioral',
-      difficulty: 'medium',
-      category: primarySkill,
-      timeLimit: 180,
-      fieldRelevant: true
-    });
-  }
-
-  // Universal professional questions - always include these
-  questions.push(
-    {
-      id: `teamwork-${Date.now()}`,
-      question: `Tell me about a time when you had to collaborate with difficult team members or stakeholders. How did you handle the situation?`,
-      type: 'behavioral',
-      difficulty: 'medium',
-      category: 'Interpersonal Skills',
-      timeLimit: 180,
-      fieldRelevant: false
-    },
-    {
-      id: `situational-${Date.now()}`,
-      question: `Imagine you're working on a critical project with a tight deadline, but you discover a potential issue that could impact quality. How would you handle this situation?`,
-      type: 'situational',
-      difficulty: 'medium',
-      category: 'Decision Making',
-      timeLimit: 180,
-      fieldRelevant: false
-    }
-  );
-
-  // Leadership question for senior roles
-  if (isSenior || jobTitle.toLowerCase().includes('senior') || 
-      jobTitle.toLowerCase().includes('lead') || 
-      jobTitle.toLowerCase().includes('manager')) {
-    questions.push({
-      id: `leadership-${Date.now()}`,
-      question: `Describe your leadership philosophy and give me an example of how you've mentored or developed team members.`,
-      type: 'behavioral',
-      difficulty: 'hard',
-      category: 'Leadership & Development',
-      timeLimit: 240,
-      fieldRelevant: false
-    });
-  }
-
-  return questions.slice(0, 6); // Return first 6 questions for initial interview
-}
-
-export async function POST(req: NextRequest) {
   try {
-    console.log('📝 Starting initial question generation...');
+    // Create AbortController for timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-    const requestData: QuestionRequest = await req.json();
-    console.log('Request data:', {
-      jobTitle: requestData.jobTitle,
-      fieldCategory: requestData.fieldCategory,
-      experience: requestData.experience,
-      skillsCount: requestData.skills?.length || 0
-    });
+    // Build a more detailed prompt based on actual profile data
+    const prompt = `Generate ${count} ${difficulty} difficulty interview questions for a ${assessmentType} assessment.
 
-    const { jobTitle, jobDescription, companyName, experience, skills, fieldCategory } = requestData;
+SPECIFIC CONTEXT:
+- Job/Position: ${title}
+- Field/Category: ${fieldCategory}
+- Skills to assess: ${skills.join(', ') || 'General communication skills'}
+- Assessment Type: ${assessmentType}
 
-    if (!jobTitle || !jobDescription) {
-      return NextResponse.json(
-        { error: 'Missing required fields: jobTitle and jobDescription' },
-        { status: 400 }
-      );
-    }
+INSTRUCTIONS:
+1. Generate questions specifically relevant to ${fieldCategory} field
+2. Focus on assessing ${skills.length > 0 ? skills.join(', ') : 'communication'} skills
+3. Questions should be practical and interview-relevant
+4. Vary question types (conceptual, practical, situational)
+5. Make questions specific to the ${fieldCategory} domain
 
-    let questions: GeneratedQuestion[] = [];
+OUTPUT FORMAT: Return as a numbered list (1. Question 2. Question ...)`;
 
-    // Try AI generation first if API key is available
-    if (process.env.DEEPSEEK_API_KEY && process.env.DEEPSEEK_API_KEY !== 'sk-72393b9508fd4a8795fc0cf0e6180ba1') {
-      try {
-        console.log('🧠 Attempting AI generation with DeepSeek...');
-
-        const prompt = `Generate 6-7 high-quality interview questions for a ${jobTitle} position in the ${fieldCategory || 'professional'} field.
-
-JOB DETAILS:
-- Title: ${jobTitle}
-- Company: ${companyName || 'Organization'}
-- Experience Level: ${experience}
-- Key Skills: ${skills.join(', ')}
-- Field Category: ${fieldCategory}
-
-JOB DESCRIPTION:
-${jobDescription.substring(0, 1000)}...
-
-REQUIREMENTS:
-1. Generate field-specific questions relevant to ${jobTitle}
-2. Include mix of: behavioral, situational, technical/domain-specific questions
-3. Adapt difficulty to experience level (${experience})
-4. Make questions practical and job-relevant
-5. Start with easier questions, progress to more complex ones
-
-Return ONLY a valid JSON array with this exact structure:
-[
-  {
-    "id": "unique-id-1",
-    "question": "specific question text",
-    "type": "behavioral|situational|technical|domain-specific",
-    "difficulty": "easy|medium|hard",
-    "category": "relevant category name",
-    "timeLimit": 180,
-    "fieldRelevant": true
-  }
-]
-
-Focus on real scenarios the ${jobTitle} would face. Make questions specific to their field and responsibilities.`;
-
-        const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${process.env.DEEPSEEK_API_KEY}`
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'llama3-8b-8192',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are an expert interview coach. Generate specific, relevant interview questions based on the provided field, skills, and assessment type.'
           },
-          body: JSON.stringify({
-            model: 'deepseek-chat',
-            messages: [
-              {
-                role: 'system',
-                content: 'You are an expert interview designer for all professional fields. Generate high-quality, field-specific interview questions. Return ONLY valid JSON array.'
-              },
-              {
-                role: 'user',
-                content: prompt
-              }
-            ],
-            temperature: 0.8,
-            max_tokens: 2000
-          })
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          const questionsText = data.choices[0]?.message?.content;
-          
-          if (questionsText) {
-            console.log('DeepSeek raw response length:', questionsText.length);
-            
-            // Extract JSON array from response
-            const jsonMatch = questionsText.match(/\[[\s\S]*\]/);
-            if (jsonMatch) {
-              try {
-                const aiQuestions = JSON.parse(jsonMatch[0]);
-                
-                // Validate and format AI questions
-                questions = aiQuestions.map((q: any, index: number) => ({
-                  id: q.id || `ai-${Date.now()}-${index}`,
-                  question: q.question || `Interview question ${index + 1}`,
-                  type: q.type || 'behavioral',
-                  difficulty: q.difficulty || 'medium',
-                  category: q.category || 'Professional Skills',
-                  timeLimit: q.timeLimit || 180,
-                  fieldRelevant: q.fieldRelevant !== false
-                }));
-                
-                console.log('✅ Successfully generated AI questions:', questions.length);
-              } catch (parseError) {
-                console.warn('Failed to parse AI JSON response:', parseError);
-                questions = [];
-              }
-            }
+          {
+            role: 'user',
+            content: prompt
           }
-        } else {
-          console.warn('DeepSeek API failed:', response.status);
-        }
-      } catch (aiError) {
-        console.warn('AI generation failed:', aiError);
-      }
-    }
-
-    // Use fallback if AI generation failed or no API key
-    if (questions.length === 0) {
-      console.log('🔄 Using intelligent universal fallback generation...');
-      questions = generateInitialQuestions(requestData);
-    }
-
-    // Ensure we have questions
-    if (questions.length === 0) {
-      questions = [
-        {
-          id: `emergency-${Date.now()}`,
-          question: `Tell me about your background and experience as a ${jobTitle}.`,
-          type: 'behavioral',
-          difficulty: 'easy',
-          category: 'Background',
-          timeLimit: 180,
-          fieldRelevant: true
-        }
-      ];
-    }
-
-    console.log(`✅ Generated ${questions.length} initial questions for ${fieldCategory || 'Professional'} field`);
-
-    return NextResponse.json({
-      success: true,
-      questions: questions,
-      metadata: {
-        jobTitle,
-        fieldCategory: fieldCategory || 'Professional',
-        experienceLevel: experience,
-        generationMethod: questions.length > 5 ? 'AI-Enhanced' : 'Smart-Fallback',
-        questionCount: questions.length
-      }
+        ],
+        temperature: 0.7,
+        max_tokens: 2000,
+      }),
+      signal: controller.signal
     });
 
-  } catch (error: any) {
-    console.error('❌ Server Error:', error);
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      console.warn(`⚠️ GROQ API returned ${response.status}`);
+      throw new Error(`API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const content = data.choices[0]?.message?.content || '';
     
-    // Emergency fallback questions
-    const emergencyQuestions: GeneratedQuestion[] = [
-      {
-        id: `emergency-1-${Date.now()}`,
-        question: "Tell me about yourself and your professional background.",
-        type: 'behavioral',
-        difficulty: 'easy',
-        category: 'Introduction',
-        timeLimit: 180,
-        fieldRelevant: false
-      },
-      {
-        id: `emergency-2-${Date.now()}`,
-        question: "What motivates you in your current role?",
-        type: 'behavioral',
-        difficulty: 'easy',
-        category: 'Motivation',
-        timeLimit: 150,
-        fieldRelevant: false
-      },
-      {
-        id: `emergency-3-${Date.now()}`,
-        question: "Describe a challenging situation you've faced at work and how you handled it.",
-        type: 'behavioral',
-        difficulty: 'medium',
-        category: 'Problem Solving',
-        timeLimit: 200,
-        fieldRelevant: false
-      }
-    ];
+    console.log('📝 API Response content preview:', content.substring(0, 200));
+    
+    if (!content.trim()) {
+      throw new Error('Empty response from API');
+    }
 
-    return NextResponse.json({
-      success: true,
-      questions: emergencyQuestions,
-      note: 'Emergency fallback questions used due to server error',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
+    // Parse questions from response
+    const questions = parseQuestionsFromText(content, count);
+    
+    if (questions.length >= count) {
+      console.log(`✅ Generated ${questions.length} questions via API`);
+      return questions.slice(0, count);
+    }
+
+    // If we didn't get enough questions, fill with fallback
+    console.log(`⚠️ Only got ${questions.length} questions from API, adding fallback`);
+    const fallbackQuestions = getFallbackQuestions(assessmentType, fieldCategory, skills, count - questions.length);
+    return [...questions, ...fallbackQuestions];
+
+  } catch (error) {
+    console.warn('⚠️ GROQ API failed, using fallback questions:', error);
+    return getFallbackQuestions(assessmentType, fieldCategory, skills, count);
   }
 }
 
+function parseQuestionsFromText(text: string, expectedCount: number): string[] {
+  const questions: string[] = [];
+  const lines = text.split('\n');
+  
+  for (const line of lines) {
+    // Match patterns: 1. Question, Q1: Question, - Question, * Question
+    const cleanLine = line.trim();
+    
+    if (cleanLine.match(/^(\d+[\.\)]|Q\d+[:\.]|[-*])\s+(.+[?])/i)) {
+      const match = cleanLine.match(/^(\d+[\.\)]|Q\d+[:\.]|[-*])\s+(.+)/i);
+      if (match && match[2]) {
+        questions.push(match[2].trim());
+      }
+    } else if (cleanLine.endsWith('?') && cleanLine.length > 20) {
+      questions.push(cleanLine);
+    }
+    
+    if (questions.length >= expectedCount) break;
+  }
+  
+  return questions;
+}
+
+function getFallbackQuestions(
+  assessmentType: string,
+  fieldCategory: string,
+  skills: string[] = [],
+  count: number = 8
+): string[] {
+  console.log('🔄 Using dynamic fallback questions for:', {
+    assessmentType,
+    fieldCategory,
+    skills,
+    count
+  });
+
+  // Helper function to create dynamic questions
+  const createQuestion = (template: string) => {
+    if (fieldCategory && fieldCategory !== 'General') {
+      return template.replace(/\{field\}/g, fieldCategory);
+    }
+    if (skills.length > 0) {
+      return template.replace(/\{field\}/g, skills[0]);
+    }
+    return template.replace(/\{field\}/g, 'this area');
+  };
+
+  // ========== ACADEMIC VIVA QUESTIONS ==========
+  if (assessmentType === 'academic-viva') {
+    const academicVivaQuestions = [
+      // Research Focus
+      `What motivated your research focus in {field}?`,
+      `How does your work in {field} address gaps in current literature?`,
+      `What theoretical frameworks guided your {field} research?`,
+      
+      // Methodology
+      `Explain your research methodology for studying {field}.`,
+      `What data collection methods were most appropriate for {field} research?`,
+      `How did you ensure validity in your {field} analysis?`,
+      
+      // Analysis & Contribution
+      `What were your key findings in {field} and their significance?`,
+      `How does your research contribute to {field} scholarship?`,
+      `What limitations did you encounter in your {field} study?`,
+      
+      // Application & Future
+      `What practical applications does your {field} research have?`,
+      `How would you extend this research in {field}?`,
+      `What ethical considerations were important in your {field} work?`,
+      
+      // Critical Thinking
+      `What current debates in {field} does your research engage with?`,
+      `How has your perspective on {field} evolved through your research?`,
+      `What methodological innovations did you bring to {field} research?`
+    ].map(createQuestion);
+
+    return academicVivaQuestions.slice(0, count);
+  }
+
+  // ========== TECHNICAL QUESTIONS ==========
+  if (assessmentType === 'technical') {
+    const technicalQuestions = [
+      // Problem Solving
+      `Describe a complex {field} problem you solved and your approach.`,
+      `How do you approach debugging difficult issues in {field}?`,
+      `What architectural patterns are most effective for {field} systems?`,
+      
+      // Design & Implementation
+      `How would you design a scalable solution for {field}?`,
+      `What trade-offs do you consider when designing {field} systems?`,
+      `How do you ensure code quality in {field} development?`,
+      
+      // Tools & Technologies
+      `What tools and technologies are essential for modern {field} work?`,
+      `How do you stay updated with {field} technologies?`,
+      `What emerging technologies are impacting {field}?`,
+      
+      // Best Practices
+      `What security considerations are critical for {field} applications?`,
+      `How do you optimize performance in {field} systems?`,
+      `What testing strategies work best for {field} projects?`,
+      
+      // Experience & Learning
+      `What challenging {field} project are you most proud of?`,
+      `How do you approach learning new {field} technologies?`,
+      `What common pitfalls should developers avoid in {field}?`
+    ].map(createQuestion);
+
+    return technicalQuestions.slice(0, count);
+  }
+
+  // ========== BEHAVIORAL QUESTIONS ==========
+  if (assessmentType === 'behavioral') {
+    const behavioralQuestions = [
+      // Teamwork & Collaboration
+      `Describe a challenging team situation in {field} and how you handled it.`,
+      `How do you handle disagreements with colleagues in {field} projects?`,
+      `What makes an effective team in the {field} industry?`,
+      
+      // Problem Solving
+      `Tell me about a difficult problem you faced in {field} and how you solved it.`,
+      `How do you approach making important decisions in {field} work?`,
+      `Describe a time you failed in {field} and what you learned.`,
+      
+      // Leadership & Initiative
+      `How do you demonstrate leadership in {field} projects?`,
+      `Describe a time you took initiative in a {field} situation.`,
+      `How do you mentor junior colleagues in {field}?`,
+      
+      // Adaptability
+      `How do you handle changing priorities in {field} work?`,
+      `Describe adapting to significant change in {field}.`,
+      `How do you stay productive under pressure in {field}?`,
+      
+      // Professional Development
+      `What skills are most valuable for success in {field}?`,
+      `How do you handle receiving critical feedback in {field}?`,
+      `Where do you see yourself growing in {field}?`
+    ].map(createQuestion);
+
+    return behavioralQuestions.slice(0, count);
+  }
+
+  // ========== COMMUNICATION TEST QUESTIONS ==========
+  if (assessmentType === 'communication-test') {
+    const communicationQuestions = [
+      // Presentation Skills
+      `How would you explain a complex {field} concept to a non-expert?`,
+      `Describe preparing for an important {field} presentation.`,
+      `How do you engage different audiences when discussing {field}?`,
+      
+      // Interpersonal Communication
+      `How do you handle difficult conversations about {field} topics?`,
+      `What techniques make your {field} communication more effective?`,
+      `How do you adapt your communication style for {field} contexts?`,
+      
+      // Written Communication
+      `How do you ensure clarity in written {field} communications?`,
+      `What makes effective documentation in {field} work?`,
+      `How do you simplify complex {field} information in writing?`,
+      
+      // Listening & Understanding
+      `How do you ensure you understand others in {field} discussions?`,
+      `What active listening techniques help in {field} communication?`,
+      `How do you handle misunderstandings about {field} topics?`,
+      
+      // Persuasion & Influence
+      `How do you persuade others about {field} ideas or approaches?`,
+      `Describe successfully influencing a {field} decision.`,
+      `What makes communication persuasive in {field} contexts?`
+    ].map(createQuestion);
+
+    return communicationQuestions.slice(0, count);
+  }
+
+  // ========== DOMAIN-SPECIFIC QUESTIONS ==========
+  if (assessmentType === 'domain-specific') {
+    const domainQuestions = [
+      // Industry Knowledge
+      `What trends are currently shaping the {field} industry?`,
+      `What challenges are unique to working in {field}?`,
+      `How do regulations impact {field} operations?`,
+      
+      // Best Practices
+      `What are the industry best practices for {field}?`,
+      `How do you stay current with {field} developments?`,
+      `What innovations are transforming {field}?`,
+      
+      // Problem Solving
+      `Describe a typical problem-solving scenario in {field}.`,
+      `How do you approach decision-making in {field} contexts?`,
+      `What risk management strategies work in {field}?`,
+      
+      // Professional Skills
+      `What skills are most valuable for success in {field}?`,
+      `How do you handle ethical dilemmas in {field}?`,
+      `What professional networks are important in {field}?`,
+      
+      // Future Outlook
+      `Where do you see {field} heading in the next 5 years?`,
+      `What emerging opportunities exist in {field}?`,
+      `How is technology changing {field} practices?`
+    ].map(createQuestion);
+
+    return domainQuestions.slice(0, count);
+  }
+
+  // ========== CONCEPTUAL QUESTIONS ==========
+  if (assessmentType === 'conceptual') {
+    const conceptualQuestions = [
+      // Fundamental Concepts
+      `Explain the core concepts of {field} to someone new to the field.`,
+      `What are the foundational theories in {field}?`,
+      `How do key concepts in {field} interrelate?`,
+      
+      // Critical Analysis
+      `What are the main debates or controversies in {field}?`,
+      `How has thinking about {field} evolved over time?`,
+      `What limitations exist in current {field} models?`,
+      
+      // Application
+      `How are {field} concepts applied in practice?`,
+      `What real-world problems can {field} thinking help solve?`,
+      `How does {field} connect to other disciplines?`,
+      
+      // Systems Thinking
+      `How do you approach complex systems in {field}?`,
+      `What patterns or relationships are important in {field}?`,
+      `How does {field} thinking help solve complex problems?`,
+      
+      // Future Development
+      `What areas of {field} need further development?`,
+      `How might {field} concepts evolve in the future?`,
+      `What new approaches are emerging in {field}?`
+    ].map(createQuestion);
+
+    return conceptualQuestions.slice(0, count);
+  }
+
+  // ========== CONFIDENCE-BUILDING QUESTIONS ==========
+  if (assessmentType === 'confidence-building') {
+    const confidenceQuestions = [
+      // Self-Expression
+      `What helps you feel confident discussing {field} topics?`,
+      `How do you prepare to speak confidently about {field}?`,
+      `What techniques help you overcome nervousness in {field} discussions?`,
+      
+      // Communication
+      `How do you build confidence in {field} presentations?`,
+      `What makes you feel most authentic when discussing {field}?`,
+      `How do you handle self-doubt in {field} situations?`,
+      
+      // Growth Mindset
+      `How have you grown in confidence with {field} over time?`,
+      `What successes have boosted your confidence in {field}?`,
+      `How do you learn from mistakes in {field}?`,
+      
+      // Body Language
+      `How does body language affect confidence in {field} settings?`,
+      `What physical techniques help you feel confident discussing {field}?`,
+      `How do you project confidence in {field} interactions?`,
+      
+      // Practice & Preparation
+      `What practice methods build your {field} confidence?`,
+      `How do you mentally prepare for {field} conversations?`,
+      `What feedback has helped your confidence in {field}?`
+    ].map(createQuestion);
+
+    return confidenceQuestions.slice(0, count);
+  }
+
+  // ========== GENERAL PRACTICE QUESTIONS ==========
+  if (assessmentType === 'general-practice') {
+    const generalQuestions = [
+      // Background & Experience
+      `What interests you about {field}?`,
+      `How did you become interested in {field}?`,
+      `What experiences have shaped your approach to {field}?`,
+      
+      // Skills & Strengths
+      `What strengths do you bring to {field} work?`,
+      `How do you apply your skills in {field} contexts?`,
+      `What makes you effective in {field} situations?`,
+      
+      // Goals & Aspirations
+      `What do you hope to achieve in {field}?`,
+      `How do you see yourself growing in {field}?`,
+      `What opportunities excite you in {field}?`,
+      
+      // Problem Approach
+      `How do you typically approach {field} challenges?`,
+      `What problem-solving methods work well in {field}?`,
+      `How do you make decisions about {field} matters?`,
+      
+      // Collaboration
+      `How do you work with others in {field} settings?`,
+      `What makes collaboration successful in {field}?`,
+      `How do you contribute to {field} teams?`
+    ].map(createQuestion);
+
+    return generalQuestions.slice(0, count);
+  }
+
+  // ========== DEFAULT FALLBACK ==========
+  const defaultQuestions = [
+    `Tell me about your experience with {field}.`,
+    `What interests you most about {field}?`,
+    `How do you approach challenges in {field}?`,
+    `What skills are important for success in {field}?`,
+    `How have you grown professionally in {field}?`,
+    `What recent developments in {field} excite you?`,
+    `How do you contribute to {field} projects?`,
+    `Where do you see {field} heading in the future?`
+  ].map(createQuestion);
+
+  return defaultQuestions.slice(0, count);
+}
 export async function GET() {
-  return NextResponse.json(
-    { 
-      message: 'Initial Interview Question Generator API',
-      supportedFields: [
-        'Government & Civil Services',
-        'Healthcare & Medical',
-        'Education & Academia',
-        'Legal & Judiciary',
-        'Engineering & Technology',
-        'Management & Leadership',
-        'Sales & Marketing',
-        'Finance & Banking',
-        'And many more...'
-      ],
-      usage: 'Send POST request with jobTitle, jobDescription, experience, skills, and fieldCategory'
-    },
-    { status: 200 }
-  );
+  return NextResponse.json({
+    message: 'Question Generation API',
+    description: 'Generate interview questions for communication skills assessment',
+    endpoints: {
+      POST: 'Generate questions with assessment type, title, skills, fieldCategory'
+    }
+  });
 }

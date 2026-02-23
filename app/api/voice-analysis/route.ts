@@ -1,84 +1,110 @@
-import { NextApiRequest, NextApiResponse } from 'next';
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@deepgram/sdk";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
+export async function POST(req: NextRequest) {
   try {
-    const { audio, transcript } = req.body;
+    const { audioBase64 } = await req.json();
 
-    // Analyze speech characteristics
-    const analysis = await analyzeSpeechCharacteristics(audio, transcript);
+    // Check if API key exists
+    const apiKey = process.env.DEEPGRAM_API_KEY;
     
-    res.status(200).json(analysis);
+    if (!apiKey) {
+      console.error("❌ DEEPGRAM_API_KEY is not set in environment variables");
+      return NextResponse.json(
+        { error: "Deepgram API key is not configured" },
+        { status: 500 }
+      );
+    }
+
+    const deepgram = createClient(apiKey);
+
+    const audioBuffer = Buffer.from(audioBase64, "base64");
+
+    const response = await deepgram.listen.prerecorded.transcribeFile(
+      audioBuffer,
+      {
+        model: "nova-2",
+        smart_format: true,
+        filler_words: true,
+        sentiment: true
+      }
+    );
+
+    // Check if response and result exist
+    if (!response || !response.result) {
+      console.error("❌ Deepgram response or result is null");
+      return NextResponse.json(
+        { 
+          transcript: "",
+          confidence: 0.5,
+          wpm: 150,
+          fillerCount: 0,
+          voiceScore: 50
+        },
+        { status: 200 }
+      );
+    }
+
+    const result = response.result;
+    
+    // Safely access nested properties with fallbacks
+    const transcript = result?.results?.channels?.[0]?.alternatives?.[0]?.transcript || "";
+    const confidence = result?.results?.channels?.[0]?.alternatives?.[0]?.confidence || 0.5;
+    const words = result?.results?.channels?.[0]?.alternatives?.[0]?.words || [];
+    const duration = result?.metadata?.duration || 1;
+
+    const wordCount = words.length;
+
+    // Calculate WPM safely
+    let wpm = 150; // default
+    if (duration > 0 && wordCount > 0) {
+      wpm = Math.round((wordCount / duration) * 60);
+    }
+
+    // Count filler words
+    const fillerWords = ["um", "uh", "like", "ah", "er", "hmm"];
+    const fillerCount = words.filter((w: any) => 
+      fillerWords.includes(w.word?.toLowerCase())
+    ).length;
+
+    // Voice Score Calculation
+    let voiceScore = 50; // base score
+    
+    voiceScore += (confidence * 40); // confidence contribution (0-40)
+    voiceScore += Math.min((wpm / 150) * 30, 30); // pace contribution (0-30)
+    voiceScore -= fillerCount * 2; // penalty for filler words
+
+    voiceScore = Math.max(20, Math.min(100, Math.round(voiceScore)));
+
+    console.log("✅ Deepgram analysis successful:", {
+      transcriptLength: transcript.length,
+      confidence,
+      wpm,
+      fillerCount,
+      voiceScore
+    });
+
+    return NextResponse.json({
+      transcript,
+      confidence,
+      wpm,
+      fillerCount,
+      voiceScore
+    });
+
   } catch (error) {
-    console.error('Voice analysis error:', error);
-    res.status(500).json({ error: 'Failed to analyze voice' });
+    console.error("❌ Deepgram API error:", error);
+    
+    // Return fallback data instead of error
+    return NextResponse.json(
+      { 
+        transcript: "",
+        confidence: 0.5,
+        wpm: 150,
+        fillerCount: 0,
+        voiceScore: 50
+      },
+      { status: 200 }
+    );
   }
-}
-
-async function analyzeSpeechCharacteristics(audio: string, transcript: string) {
-  // Calculate speaking rate
-  const words = transcript.split(/\s+/).filter(word => word.length > 0);
-  const wordCount = words.length;
-  
-  // Analyze filler words
-  const fillerWords = ['um', 'uh', 'like', 'you know', 'actually', 'basically'];
-  const fillerCount = words.filter(word => 
-    fillerWords.includes(word.toLowerCase().replace(/[.,!?;:]/g, ''))
-  ).length;
-
-  // Analyze pauses (simplified - in real implementation, use audio analysis)
-  const pauseIndicators = ['.', '?', '!', ',', ';', ':'];
-  const pauseCount = words.filter(word => 
-    pauseIndicators.some(p => word.includes(p))
-  ).length;
-
-  // Use Wav2Vec2 for more advanced analysis if needed
-  const advancedAnalysis = await fetch('http://localhost:3000/api/huggingface/facebook/wav2vec2-base-960h', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      inputs: audio,
-    }),
-  }).then(res => res.json());
-
-  return {
-    volume: calculateVolume(audio), // Implement audio volume analysis
-    clarity: calculateClarity(advancedAnalysis),
-    pace: Math.max(50, Math.min(300, (wordCount / 60) * 60)), // words per minute estimate
-    tone: analyzeTone(advancedAnalysis),
-    fillerWords: fillerCount,
-    pauses: pauseCount,
-    confidence: calculateConfidence(wordCount, fillerCount, pauseCount),
-    wordCount,
-    speakingRate: wordCount / 60, // words per second
-  };
-}
-
-function calculateVolume(audioData: string): number {
-  // Implement audio volume analysis from base64 data
-  // This is a simplified version
-  return Math.random() * 40 + 60; // Placeholder
-}
-
-function calculateClarity(analysis: any): number {
-  // Analyze speech clarity from advanced analysis
-  return Math.random() * 30 + 70; // Placeholder
-}
-
-function analyzeTone(analysis: any): number {
-  // Analyze voice tone/pitch
-  return Math.random() * 40 + 60; // Placeholder
-}
-
-function calculateConfidence(wordCount: number, fillerCount: number, pauseCount: number): number {
-  const baseScore = Math.min(100, (wordCount / 2));
-  const fillerPenalty = Math.min(20, fillerCount * 3);
-  const pausePenalty = Math.min(15, pauseCount * 2);
-  
-  return Math.max(0, baseScore - fillerPenalty - pausePenalty);
 }

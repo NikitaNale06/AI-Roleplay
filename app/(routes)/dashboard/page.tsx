@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useUser, SignedIn, UserButton } from '@clerk/nextjs';
 import { 
   Trophy, 
   Clock, 
@@ -28,21 +30,90 @@ import {
   Video,
   User,
   ArrowRight,
-  X
+  X,
+  History,
+  Eye,
+  EyeOff,
+  Calendar,
+  CheckCircle,
+  AlertCircle
 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 
-const Button = ({ children, onClick, className, ...props }: any) => (
-  <button
-    onClick={onClick}
-    className={`px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors ${className || ''}`}
-    {...props}
-  >
-    {children}
-  </button>
-);
+// Component for the animated gaming background
+function GamingBackground() {
+  return (
+    <div className="absolute inset-0 z-0 overflow-hidden bg-gradient-to-b from-gray-900 via-purple-900 to-gray-900">
+      {/* Animated particles */}
+      <div className="absolute inset-0">
+        {Array.from({ length: 50 }).map((_, i) => (
+          <div
+            key={i}
+            className="absolute h-px w-px animate-pulse rounded-full bg-blue-400 opacity-30"
+            style={{
+              top: `${Math.random() * 100}%`,
+              left: `${Math.random() * 100}%`,
+              animationDelay: `${Math.random() * 2}s`,
+              animationDuration: `${1 + Math.random() * 2}s`
+            }}
+          ></div>
+        ))}
+      </div>
+      
+      {/* Animated glow effects */}
+      <div className="absolute left-1/4 top-1/3 h-48 w-48 animate-pulse rounded-full bg-gradient-to-r from-blue-500 to-purple-600 opacity-20 blur-3xl"></div>
+      <div className="absolute bottom-1/4 right-1/4 h-64 w-64 animate-pulse rounded-full bg-gradient-to-r from-purple-500 to-pink-600 opacity-20 blur-3xl animation-delay-1000"></div>
+      
+      {/* Circuit board pattern */}
+      <div className="absolute inset-0 opacity-5">
+        <div className="h-full w-full bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiM5QzkyQUMiIGZpbGwtb3BhY2l0eT0iMC40Ij48cGF0aCBkPSJNMzYgMzR2LTRoLTJ2NGgtNHYyaDR2NGgydi00aDR2LTJoLTR6bTAtMzBWMGgtMnY0aC00djJoNHY0aDJWNmg0VjRoLTR6TTYgMzR2LTRINHY0SDB2Mmg0djRINnYtNGg0di0ySDZ6TTYgNFYwSDR2NEgwdjJoNHY0SDZWNmg0VjRINnoiLz48L2c+PC9nPjwvc3ZnPg==')]"></div>
+      </div>
 
-interface InterviewHistory {
+      <style jsx>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 0.2; }
+          50% { opacity: 0.4; }
+        }
+        .animate-pulse {
+          animation: pulse 4s infinite ease-in-out;
+        }
+        .animation-delay-1000 {
+          animation-delay: 1s;
+        }
+      `}</style>
+    </div>
+  );
+}
+
+// Component for the header
+function Header() {
+  return (
+    <nav className="relative z-10 flex w-full items-center justify-between bg-gradient-to-r from-gray-900 via-purple-900 to-gray-900 px-6 py-4 shadow-2xl">
+      <div className="flex items-center gap-3">
+        <div className="relative h-8 w-8">
+          <div className="absolute inset-0 animate-ping rounded-full bg-blue-500 opacity-20"></div>
+          <div className="relative h-8 w-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-500"></div>
+        </div>
+        <h1 className="bg-gradient-to-r from-blue-300 to-purple-300 bg-clip-text text-xl font-bold text-transparent md:text-2xl">
+          ASSESSMENT RESULTS
+        </h1>
+      </div>
+      <SignedIn>
+        <div className="flex items-center gap-4">
+          <UserButton 
+            afterSignOutUrl="/" 
+            appearance={{
+              elements: {
+                avatarBox: "border-2 border-purple-500"
+              }
+            }} 
+          />
+        </div>
+      </SignedIn>
+    </nav>
+  );
+}
+
+interface AssessmentResult {
   id: string;
   jobTitle: string;
   date: string;
@@ -71,9 +142,10 @@ interface InterviewHistory {
   difficulty?: 'beginner' | 'intermediate' | 'advanced';
 }
 
-export default function Dashboard() {
+// Main Home Component
+export default function Home() {
   const router = useRouter();
-  const [interviewHistory, setInterviewHistory] = useState<InterviewHistory[]>([]);
+  const [assessmentResults, setAssessmentResults] = useState<AssessmentResult[]>([]);
   const [stats, setStats] = useState({
     averageScore: 0,
     totalAssessments: 0,
@@ -91,128 +163,119 @@ export default function Dashboard() {
       generalPractice: 0
     },
     todaySessions: 0,
-    weeklyProgress: 0
+    weeklyProgress: 0,
+    topStrengths: [] as string[]
   });
-  const [selectedInterview, setSelectedInterview] = useState<InterviewHistory | null>(null);
-  const [showInterviewDetails, setShowInterviewDetails] = useState(false);
+  const [selectedAssessment, setSelectedAssessment] = useState<AssessmentResult | null>(null);
+  const [showAssessmentDetails, setShowAssessmentDetails] = useState(false);
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [showDebugInfo, setShowDebugInfo] = useState(false);
 
-  // FIXED: Single useEffect hook - removed nested useEffect
+  // Load assessment results
   useEffect(() => {
-    const loadInterviewHistory = () => {
+    const loadAssessmentResults = () => {
       try {
-        const completedInterview = localStorage.getItem('completedInterview');
-        const interviewHistory = localStorage.getItem('interviewHistory');
+        const completedAssessment = localStorage.getItem('completedInterview');
+        const assessmentHistory = localStorage.getItem('interviewHistory');
         
-        let history: InterviewHistory[] = [];
+        let results: AssessmentResult[] = [];
         
-        if (interviewHistory) {
+        if (assessmentHistory) {
           try {
-            const parsedHistory = JSON.parse(interviewHistory);
-            // Validate and clean the history data
-            history = parsedHistory.filter((assessment: InterviewHistory) => {
-              // Ensure each assessment has required fields
+            const parsedHistory = JSON.parse(assessmentHistory);
+            results = parsedHistory.filter((assessment: AssessmentResult) => {
               return assessment.id && 
                      assessment.jobTitle && 
                      assessment.date && 
                      assessment.totalScore !== undefined;
             });
           } catch (e) {
-            console.error('Error parsing interview history:', e);
-            history = [];
+            console.error('Error parsing assessment results:', e);
+            results = [];
           }
         }
         
-        // Process new completed interview with validation
-        if (completedInterview) {
+        if (completedAssessment) {
           try {
-            const newInterview: InterviewHistory = JSON.parse(completedInterview);
+            const newAssessment: AssessmentResult = JSON.parse(completedAssessment);
             
-            // FIXED: Validate and complete missing fields
-            if (!newInterview.id) {
-              newInterview.id = `assessment-${Date.now()}`;
+            if (!newAssessment.id) {
+              newAssessment.id = `assessment-${Date.now()}`;
             }
-            if (!newInterview.date) {
-              newInterview.date = new Date().toISOString();
+            if (!newAssessment.date) {
+              newAssessment.date = new Date().toISOString();
             }
-            if (!newInterview.jobTitle) {
-              newInterview.jobTitle = newInterview.profile?.jobTitle || 'Talkgenious AI Assessment';
+            if (!newAssessment.jobTitle) {
+              newAssessment.jobTitle = newAssessment.profile?.jobTitle || 'Talkgenious AI Assessment';
             }
-            if (newInterview.totalScore === undefined || newInterview.totalScore === null) {
-              // Calculate score from answers if missing
-              if (newInterview.answers && newInterview.answers.length > 0) {
-                const validScores = newInterview.answers
+            if (newAssessment.totalScore === undefined || newAssessment.totalScore === null) {
+              if (newAssessment.answers && newAssessment.answers.length > 0) {
+                const validScores = newAssessment.answers
                   .filter((answer: any) => answer.score !== undefined && answer.score !== null)
                   .map((answer: any) => answer.score);
                 
                 if (validScores.length > 0) {
                   const avgScore = validScores.reduce((sum: number, score: number) => sum + score, 0) / validScores.length;
-                  newInterview.totalScore = Math.round(avgScore);
+                  newAssessment.totalScore = Math.round(avgScore);
                 } else {
-                  newInterview.totalScore = 0;
+                  newAssessment.totalScore = 0;
                 }
               } else {
-                newInterview.totalScore = 0;
+                newAssessment.totalScore = 0;
               }
             }
-            if (!newInterview.duration || newInterview.duration === 0) {
-              // Calculate duration if missing
-              if (newInterview.startTime && newInterview.endTime) {
-                const start = new Date(newInterview.startTime).getTime();
-                const end = new Date(newInterview.endTime).getTime();
-                newInterview.duration = Math.round((end - start) / 1000);
+            if (!newAssessment.duration || newAssessment.duration === 0) {
+              if (newAssessment.startTime && newAssessment.endTime) {
+                const start = new Date(newAssessment.startTime).getTime();
+                const end = new Date(newAssessment.endTime).getTime();
+                newAssessment.duration = Math.round((end - start) / 1000);
               } else {
-                newInterview.duration = 300; // Default 5 minutes
+                newAssessment.duration = 300;
               }
             }
             
-            // Add to beginning of history
-            history = [newInterview, ...history];
+            results = [newAssessment, ...results];
             
-            // Save updated history
-            localStorage.setItem('interviewHistory', JSON.stringify(history));
+            localStorage.setItem('interviewHistory', JSON.stringify(results));
             localStorage.removeItem('completedInterview');
             localStorage.removeItem('activeInterview');
             
-            console.log('✅ New assessment added to history:', newInterview);
+            console.log('✅ New assessment result added:', newAssessment);
           } catch (e) {
-            console.error('Error processing completed interview:', e);
+            console.error('Error processing completed assessment:', e);
           }
         }
         
-        setInterviewHistory(history);
-        calculateStatistics(history);
+        setAssessmentResults(results);
+        calculateStatistics(results);
         
       } catch (error) {
-        console.error('Error loading interview history:', error);
+        console.error('Error loading assessment results:', error);
       } finally {
         setIsLoading(false);
       }
     };
 
-    // Load immediately and set up listeners
-    loadInterviewHistory();
+    loadAssessmentResults();
     
-    const interval = setInterval(loadInterviewHistory, 2000);
-    const handleStorageChange = () => loadInterviewHistory();
-    const handleInterviewComplete = () => loadInterviewHistory();
+    const interval = setInterval(loadAssessmentResults, 2000);
+    const handleStorageChange = () => loadAssessmentResults();
+    const handleAssessmentComplete = () => loadAssessmentResults();
 
     window.addEventListener('storage', handleStorageChange);
-    window.addEventListener('interviewCompleted', handleInterviewComplete);
+    window.addEventListener('interviewCompleted', handleAssessmentComplete);
 
     return () => {
       window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('interviewCompleted', handleInterviewComplete);
+      window.removeEventListener('interviewCompleted', handleAssessmentComplete);
       clearInterval(interval);
     };
-  }, [refreshTrigger]); // Only dependency is refreshTrigger
+  }, [refreshTrigger]);
 
-  // FIXED: Enhanced statistics calculation
-  const calculateStatistics = (history: InterviewHistory[]) => {
-    if (history.length === 0) {
+  const calculateStatistics = (results: AssessmentResult[]) => {
+    if (results.length === 0) {
       setStats({
         averageScore: 0,
         totalAssessments: 0,
@@ -230,14 +293,13 @@ export default function Dashboard() {
           generalPractice: 0
         },
         todaySessions: 0,
-        weeklyProgress: 0
+        weeklyProgress: 0,
+        topStrengths: []
       });
       return;
     }
     
-    // FIXED: Filter and validate assessments properly
-    const validAssessments = history.filter(assessment => {
-      // Ensure assessment has valid score and data
+    const validAssessments = results.filter(assessment => {
       const hasValidScore = assessment.totalScore !== undefined && 
                            assessment.totalScore !== null && 
                            !isNaN(assessment.totalScore) &&
@@ -251,34 +313,44 @@ export default function Dashboard() {
       return hasValidScore && hasValidDuration;
     });
     
-    // Calculate statistics only from valid assessments
     const totalScore = validAssessments.reduce((sum, assessment) => sum + assessment.totalScore, 0);
     const averageScore = validAssessments.length > 0 ? Math.round(totalScore / validAssessments.length) : 0;
     
     const bestScore = validAssessments.length > 0 ? 
       Math.max(...validAssessments.map(i => i.totalScore)) : 0;
     
-    // FIXED: Calculate total practice time in minutes
     const totalPracticeTimeSeconds = validAssessments.reduce((sum, assessment) => sum + (assessment.duration || 0), 0);
     const totalPracticeTimeMinutes = Math.round(totalPracticeTimeSeconds / 60);
     
-    // FIXED: Get improvement areas from the most recent assessment
+    // Collect all strengths from assessments
+    const allStrengths = validAssessments.flatMap(assessment => 
+      assessment.summary?.strengths || []
+    );
+    
+    // Get top 3 most common strengths
+    const strengthCount = allStrengths.reduce((acc: Record<string, number>, strength) => {
+      acc[strength] = (acc[strength] || 0) + 1;
+      return acc;
+    }, {});
+    
+    const topStrengths = Object.entries(strengthCount)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([strength]) => strength);
+    
     const improvementAreas = validAssessments.length > 0 ? 
       (validAssessments[0].summary?.improvements || []) : [];
     
     const streak = calculateStreak(validAssessments);
     const recentTrend = calculateRecentTrend(validAssessments);
     
-    // Calculate today's sessions
     const today = new Date().toDateString();
     const todaySessions = validAssessments.filter(assessment => 
       new Date(assessment.date).toDateString() === today
     ).length;
 
-    // Calculate weekly progress
     const weeklyProgress = calculateWeeklyProgress(validAssessments);
     
-    // Calculate assessment type distribution
     const assessmentTypes = {
       interview: validAssessments.filter(a => a.assessmentType === 'interview').length,
       academicViva: validAssessments.filter(a => a.assessmentType === 'academic-viva').length,
@@ -298,24 +370,25 @@ export default function Dashboard() {
       recentTrend,
       assessmentTypes,
       todaySessions,
-      weeklyProgress
+      weeklyProgress,
+      topStrengths
     });
   };
 
-  const calculateStreak = (history: InterviewHistory[]): number => {
-    if (history.length === 0) return 0;
+  const calculateStreak = (results: AssessmentResult[]): number => {
+    if (results.length === 0) return 0;
     
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
-    const sortedHistory = [...history].sort((a, b) => 
+    const sortedResults = [...results].sort((a, b) => 
       new Date(b.date).getTime() - new Date(a.date).getTime()
     );
     
     let streak = 0;
     let currentDate = new Date(today);
     
-    for (const assessment of sortedHistory) {
+    for (const assessment of sortedResults) {
       const assessmentDate = new Date(assessment.date);
       assessmentDate.setHours(0, 0, 0, 0);
       
@@ -335,10 +408,10 @@ export default function Dashboard() {
     return streak;
   };
 
-  const calculateRecentTrend = (history: InterviewHistory[]): 'improving' | 'declining' | 'stable' => {
-    if (history.length < 2) return 'stable';
+  const calculateRecentTrend = (results: AssessmentResult[]): 'improving' | 'declining' | 'stable' => {
+    if (results.length < 2) return 'stable';
     
-    const recentScores = history.slice(0, 3).map(i => i.totalScore);
+    const recentScores = results.slice(0, 3).map(i => i.totalScore);
     if (recentScores.length < 2) return 'stable';
     
     if (recentScores.length >= 2) {
@@ -352,75 +425,72 @@ export default function Dashboard() {
     return 'stable';
   };
 
-  // FIXED: Weekly progress calculation with 100% limit
-const calculateWeeklyProgress = (history: InterviewHistory[]): number => {
-  if (history.length < 2) return 0;
-  
-  const oneWeekAgo = new Date();
-  oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-  
-  const thisWeekSessions = history.filter(assessment => 
-    new Date(assessment.date) >= oneWeekAgo
-  ).length;
-  
-  const lastWeekSessions = history.filter(assessment => {
-    const assessmentDate = new Date(assessment.date);
-    const twoWeeksAgo = new Date();
-    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
-    return assessmentDate >= twoWeeksAgo && assessmentDate < oneWeekAgo;
-  }).length;
-  
-  if (lastWeekSessions === 0) {
-    // If no sessions last week, cap at 100% for any sessions this week
-    return thisWeekSessions > 0 ? 100 : 0;
-  }
-  
-  // Calculate percentage increase and cap at 100%
-  const progress = Math.round(((thisWeekSessions - lastWeekSessions) / lastWeekSessions) * 100);
-  return Math.min(Math.max(progress, -100), 100); // Cap between -100% and +100%
-};
+  const calculateWeeklyProgress = (results: AssessmentResult[]): number => {
+    if (results.length < 2) return 0;
+    
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+    
+    const thisWeekSessions = results.filter(assessment => 
+      new Date(assessment.date) >= oneWeekAgo
+    ).length;
+    
+    const lastWeekSessions = results.filter(assessment => {
+      const assessmentDate = new Date(assessment.date);
+      const twoWeeksAgo = new Date();
+      twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+      return assessmentDate >= twoWeeksAgo && assessmentDate < oneWeekAgo;
+    }).length;
+    
+    if (lastWeekSessions === 0) {
+      return thisWeekSessions > 0 ? 100 : 0;
+    }
+    
+    const progress = Math.round(((thisWeekSessions - lastWeekSessions) / lastWeekSessions) * 100);
+    return Math.min(Math.max(progress, -100), 100);
+  };
 
-  const startNewAssessment = () => {
+  const handleStartNewAssessment = () => {
     router.push('/dashboard/interview/create');
   };
 
-  const viewInterviewDetails = (interview: InterviewHistory) => {
-    setSelectedInterview(interview);
-    setShowInterviewDetails(true);
+  const viewAssessmentDetails = (assessment: AssessmentResult) => {
+    setSelectedAssessment(assessment);
+    setShowAssessmentDetails(true);
   };
 
-  const playRecordedAudio = (interview: InterviewHistory) => {
-    if (interview.recordedAudio) {
+  const playRecordedAudio = (assessment: AssessmentResult) => {
+    if (assessment.recordedAudio) {
       let audioUrl;
-      if (typeof interview.recordedAudio === 'string') {
-        audioUrl = interview.recordedAudio;
+      if (typeof assessment.recordedAudio === 'string') {
+        audioUrl = assessment.recordedAudio;
       } else {
-        audioUrl = URL.createObjectURL(interview.recordedAudio);
+        audioUrl = URL.createObjectURL(assessment.recordedAudio);
       }
       
       const audio = new Audio(audioUrl);
       audio.play();
-      setPlayingAudio(interview.id);
+      setPlayingAudio(assessment.id);
       
       audio.onended = () => setPlayingAudio(null);
     }
   };
 
-  const downloadInterviewReport = (interview: InterviewHistory) => {
+  const downloadAssessmentReport = (assessment: AssessmentResult) => {
     const report = {
-      'Assessment ID': interview.id,
-      'Assessment Type': getAssessmentTypeLabel(interview.assessmentType || 'interview'),
-      'Subject/Title': interview.jobTitle,
-      'Date': new Date(interview.date).toLocaleDateString(),
-      'Total Score': `${interview.totalScore}%`,
-      'Duration': `${Math.round((interview.duration || 0) / 60)} minutes`,
-      'Number of Questions': interview.questions?.length || 0,
-      'Questions Answered': interview.answers?.length || 0,
-      'Type': interview.type || (interview.isDynamic ? 'Dynamic AI' : 'Standard'),
-      'Strengths': interview.summary?.strengths?.join(', ') || 'None identified',
-      'Areas for Improvement': interview.summary?.improvements?.join(', ') || 'None identified',
-      'Overall Feedback': interview.summary?.overallFeedback || 'No feedback available',
-      'Performance Insights': `Scored ${interview.totalScore}% with ${interview.answers?.length || 0} questions answered`
+      'Assessment ID': assessment.id,
+      'Assessment Type': getAssessmentTypeLabel(assessment.assessmentType || 'interview'),
+      'Subject/Title': assessment.jobTitle,
+      'Date': new Date(assessment.date).toLocaleDateString(),
+      'Total Score': `${assessment.totalScore}%`,
+      'Duration': `${Math.round((assessment.duration || 0) / 60)} minutes`,
+      'Number of Questions': assessment.questions?.length || 0,
+      'Questions Answered': assessment.answers?.length || 0,
+      'Type': assessment.type || (assessment.isDynamic ? 'Dynamic AI' : 'Standard'),
+      'Strengths': assessment.summary?.strengths?.join(', ') || 'None identified',
+      'Areas for Improvement': assessment.summary?.improvements?.join(', ') || 'None identified',
+      'Overall Feedback': assessment.summary?.overallFeedback || 'No feedback available',
+      'Performance Insights': `Scored ${assessment.totalScore}% with ${assessment.answers?.length || 0} questions answered`
     };
     
     const reportText = Object.entries(report)
@@ -431,7 +501,7 @@ const calculateWeeklyProgress = (history: InterviewHistory[]): number => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${getAssessmentTypeLabel(interview.assessmentType || 'interview').toLowerCase().replace(/ /g, '-')}-report-${interview.id.slice(-8)}.txt`;
+    a.download = `${getAssessmentTypeLabel(assessment.assessmentType || 'interview').toLowerCase().replace(/ /g, '-')}-report-${assessment.id.slice(-8)}.txt`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -485,510 +555,240 @@ const calculateWeeklyProgress = (history: InterviewHistory[]): number => {
     }
   };
 
+  const getScoreColor = (score: number) => {
+    if (score >= 80) return 'text-green-400';
+    if (score >= 60) return 'text-yellow-400';
+    return 'text-red-400';
+  };
+
+  const getScoreBg = (score: number) => {
+    if (score >= 80) return 'bg-green-500/20';
+    if (score >= 60) return 'bg-yellow-500/20';
+    return 'bg-red-500/20';
+  };
+
   const forceRefresh = () => {
     setRefreshTrigger(prev => prev + 1);
   };
 
-  const hasActiveInterview = () => {
-    const activeInterview = localStorage.getItem('activeInterview');
-    return activeInterview !== null;
+  const hasActiveAssessment = () => {
+    const activeAssessment = localStorage.getItem('activeInterview');
+    return activeAssessment !== null;
   };
 
-  const resumeInterview = () => {
+  const resumeAssessment = () => {
     router.push('/dashboard/interview/active');
   };
 
   if (isLoading) {
     return (
-      <div 
-        className="min-h-screen flex items-center justify-center"
-        style={{
-          backgroundImage: 'url("/ai2.jpg")',
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          backgroundAttachment: 'fixed'
-        }}
-      >
-        <div className="text-center bg-white/80 backdrop-blur-sm rounded-xl p-8">
-          <RefreshCw className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600">Loading dashboard...</p>
+      <div className="relative min-h-screen overflow-hidden bg-gradient-to-b from-gray-900 via-purple-900 to-gray-900">
+        <GamingBackground />
+        <Header />
+        <div className="relative z-10 flex items-center justify-center min-h-[60vh]">
+          <div className="text-center bg-white/10 backdrop-blur-sm rounded-xl p-8">
+            <RefreshCw className="h-8 w-8 animate-spin text-blue-400 mx-auto mb-4" />
+            <p className="text-gray-300">Loading assessment results...</p>
+          </div>
         </div>
       </div>
     );
   }
 
-  return (
-    <div 
-      className="min-h-screen p-4"
-      style={{
-        backgroundImage: 'url("/ai2.jpg")',
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundAttachment: 'fixed'
-      }}
-    >
-      <div className="max-w-7xl mx-auto">
-        {/* Header - TalkGenius Branding */}
-        <div className="mb-8 text-center">
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
-              <Brain className="h-7 w-7 text-white" />
-            </div>
-            <div>
-              <h1 className="text-4xl font-bold text-gray-900">TalkGenius</h1>
-              <p className="text-lg text-gray-700">AI Roleplay Assessment Platform</p>
-            </div>
-          </div>
+return (
+    <div className="relative min-h-screen overflow-hidden bg-gradient-to-b from-gray-900 via-purple-900 to-gray-900">
+      <GamingBackground />
+      <Header />
+      
+      {/* Main Content */}
+      <div className="relative z-10 max-w-7xl mx-auto px-4 py-4 h-[calc(100vh-80px)]">
+        {/* Single Start New Assessment Button */}
+        <div className="flex justify-center mb-4">
+          <button 
+            onClick={handleStartNewAssessment}
+            className="transform rounded-full bg-gradient-to-r from-blue-600 to-purple-600 px-8 py-3 text-lg font-bold text-white shadow-2xl transition-all duration-300 hover:scale-110 hover:shadow-blue-500/50 border border-blue-400 flex items-center gap-2"
+          >
+            <Play className="h-5 w-5" />
+            Start New Assessment
+          </button>
         </div>
 
-        {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Quick Start & Stats */}
-          <div className="space-y-6">
-            {/* Quick Start Card */}
-            <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Start</h3>
-              <button
-                onClick={startNewAssessment}
-                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 rounded-xl font-semibold hover:from-blue-700 hover:to-purple-700 transition-all duration-300 transform hover:scale-105 shadow-lg mb-4"
-              >
-                <div className="flex items-center justify-center gap-2">
-                  <Play className="h-5 w-5" />
-                  Start New Assessment
-                </div>
-              </button>
-              
-              {hasActiveInterview() && (
-                <button
-                  onClick={resumeInterview}
-                  className="w-full bg-gradient-to-r from-green-600 to-teal-600 text-white py-3 rounded-xl font-semibold hover:from-green-700 hover:to-teal-700 transition-all duration-300 transform hover:scale-105 shadow-lg"
-                >
-                  <div className="flex items-center justify-center gap-2">
-                    <Zap className="h-5 w-5" />
-                    Resume Assessment
-                  </div>
-                </button>
-              )}
-            </div>
-
-            {/* Performance Stats */}
-            <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Performance Stats</h3>
+        {/* Main Grid - Adjusted column ratios */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 h-[calc(100%-140px)]">
+          {/* Left Column - Performance Overview - 3/5 of the space */}
+          <div className="lg:col-span-3 h-full">
+            <div className="bg-white/10 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-700 p-6 h-full">
+              <h3 className="text-base font-semibold text-white mb-4 flex items-center gap-2">
+                <Trophy className="h-5 w-5 text-yellow-400" />
+                Performance Overview
+              </h3>
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-blue-100">
-                      <Trophy className="h-5 w-5 text-blue-600" />
+                    <div className="p-2 rounded-lg bg-blue-500/20">
+                      <Target className="h-5 w-5 text-blue-400" />
                     </div>
                     <div>
-                      <p className="text-sm text-gray-600">Average Score</p>
-                      <p className="text-xl font-bold text-gray-900">{stats.averageScore}%</p>
+                      <p className="text-sm text-gray-300">Average Score</p>
+                      <p className="text-2xl font-bold text-white">{stats.averageScore}%</p>
                     </div>
                   </div>
-                  <div className={`px-3 py-1 rounded-full text-sm ${getTrendColor(stats.recentTrend)}`}>
+                  <div className={`px-3 py-1 rounded-full text-sm flex items-center gap-1 ${getTrendColor(stats.recentTrend)}`}>
                     {getTrendIcon(stats.recentTrend)}
+                    <span className="capitalize">{stats.recentTrend}</span>
                   </div>
                 </div>
 
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-green-100">
-                      <FileText className="h-5 w-5 text-green-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600">Total Assessments</p>
-                      <p className="text-xl font-bold text-gray-900">{stats.totalAssessments}</p>
-                    </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-gray-800/50 p-4 rounded-lg">
+                    <p className="text-xs text-gray-400">Total Assessments</p>
+                    <p className="text-xl font-bold text-white">{stats.totalAssessments}</p>
                   </div>
-                </div>
-
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-orange-100">
-                      <Target className="h-5 w-5 text-orange-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600">Current Streak</p>
-                      <p className="text-xl font-bold text-gray-900">{stats.streak} days</p>
-                    </div>
+                  <div className="bg-gray-800/50 p-4 rounded-lg">
+                    <p className="text-xs text-gray-400">Best Score</p>
+                    <p className={`text-xl font-bold ${getScoreColor(stats.bestScore)}`}>{stats.bestScore}%</p>
                   </div>
-                </div>
-
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-purple-100">
-                      <Star className="h-5 w-5 text-purple-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600">Best Score</p>
-                      <p className="text-xl font-bold text-gray-900">{stats.bestScore}%</p>
-                    </div>
+                  <div className="bg-gray-800/50 p-4 rounded-lg">
+                    <p className="text-xs text-gray-400">Current Streak</p>
+                    <p className="text-xl font-bold text-white">{stats.streak} <span className="text-xs text-gray-400">days</span></p>
+                  </div>
+                  <div className="bg-gray-800/50 p-4 rounded-lg">
+                    <p className="text-xs text-gray-400">Practice Time</p>
+                    <p className="text-xl font-bold text-white">{stats.totalPracticeTime} <span className="text-xs text-gray-400">min</span></p>
                   </div>
                 </div>
               </div>
-            </div>
-
-            {/* Focus Areas */}
-            <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Focus Areas</h3>
-              {stats.improvementAreas.length > 0 ? (
-                <div className="space-y-3">
-                  {stats.improvementAreas.map((area, index) => (
-                    <div key={index} className="flex items-center gap-3 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-                      <Award className="w-4 h-4 text-yellow-600 flex-shrink-0" />
-                      <span className="text-sm font-medium text-yellow-800 truncate">{area}</span>
-                    </div>
-                  ))}
-                </div>
-              ) : stats.totalAssessments > 0 ? (
-                <div className="text-center py-4">
-                  <Award className="w-8 h-8 text-green-500 mx-auto mb-2" />
-                  <p className="text-sm text-green-700">Great job! No major improvement areas.</p>
-                </div>
-              ) : (
-                <p className="text-gray-600 text-sm text-center py-4">Complete assessments to get recommendations</p>
-              )}
             </div>
           </div>
 
-          {/* Center Column - Recent Assessments */}
-          <div className="space-y-6">
-            {/* Recent Assessments */}
-            <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-200 p-6 h-full">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-semibold text-gray-900">Recent Assessments</h3>
-                <div className="flex gap-2">
-                  <button 
-                    onClick={() => setShowDebugInfo(!showDebugInfo)}
-                    className="px-3 py-1 text-xs bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
-                  >
-                    {showDebugInfo ? 'Hide Debug' : 'Show Debug'}
-                  </button>
-                  <button 
-                    onClick={forceRefresh}
-                    className="p-2 text-gray-600 hover:text-gray-800 rounded-lg hover:bg-gray-100 transition-colors"
-                  >
-                    <RefreshCw className="h-5 w-5" />
-                  </button>
-                </div>
+          {/* Right Column - Assessment Results List - 2/5 of the space (smaller) */}
+          <div className="lg:col-span-2 h-full">
+            <div className="bg-white/10 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-700 p-4 h-full flex flex-col">
+              <div className="flex justify-between items-center mb-2">
+                <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-blue-400" />
+                  Recent Results
+                </h3>
+                <button 
+                  onClick={forceRefresh}
+                  className="p-1 text-gray-400 hover:text-white rounded-lg hover:bg-gray-700 transition-colors"
+                >
+                  <RefreshCw className="h-3 w-3" />
+                </button>
               </div>
 
-              {interviewHistory.length > 0 ? (
-                <div className="space-y-4">
-                  {interviewHistory.slice(0, 5).map((assessment) => (
+              {assessmentResults.length > 0 ? (
+                <div className="space-y-1.5 flex-1 overflow-y-auto">
+                  {assessmentResults.map((assessment) => (
                     <div 
                       key={assessment.id} 
-                      className="flex items-center justify-between p-4 bg-gray-50/80 backdrop-blur-sm rounded-lg hover:bg-gray-100/80 transition-colors cursor-pointer border border-gray-200"
-                      onClick={() => viewInterviewDetails(assessment)}
+                      className="flex items-center justify-between p-1.5 bg-gray-800/50 rounded-lg hover:bg-gray-700/50 cursor-pointer border border-gray-700 group"
+                      onClick={() => viewAssessmentDetails(assessment)}
                     >
-                      <div className="flex items-center space-x-4 min-w-0 flex-1">
-                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                          assessment.totalScore >= 80 ? 'bg-green-100 text-green-600' :
-                          assessment.totalScore >= 60 ? 'bg-blue-100 text-blue-600' :
-                          'bg-red-100 text-red-600'
-                        }`}>
-                          {getAssessmentTypeIcon(assessment.assessmentType || 'interview')}
+                      <div className="flex items-center space-x-1.5 min-w-0 flex-1">
+                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${getScoreBg(assessment.totalScore)}`}>
+                          <span className="text-[10px] font-bold text-white">{Math.round(assessment.totalScore)}%</span>
                         </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h4 className="font-medium text-gray-900 truncate text-sm">{assessment.jobTitle}</h4>
-                            <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full ${getAssessmentTypeColor(assessment.assessmentType || 'interview')}`}>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1">
+                            <h4 className="font-medium text-white text-[10px] truncate max-w-[80px]">{assessment.jobTitle}</h4>
+                            <span className={`px-1 py-0.5 text-[6px] rounded-full ${getAssessmentTypeColor(assessment.assessmentType || 'interview')}`}>
                               {getAssessmentTypeIcon(assessment.assessmentType || 'interview')}
-                              {getAssessmentTypeLabel(assessment.assessmentType || 'interview')}
                             </span>
                           </div>
-                          <p className="text-xs text-gray-600 truncate">
-                            {new Date(assessment.date).toLocaleDateString()} • 
-                            {assessment.questions?.length || 0} questions • 
-                            {Math.round((assessment.duration || 0) / 60)} min
-                          </p>
+                          <div className="flex items-center gap-1 text-[6px] text-gray-400">
+                            <span>{new Date(assessment.date).toLocaleDateString()}</span>
+                            <span>•</span>
+                            <span>{assessment.questions?.length || 0} Q</span>
+                          </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3 flex-shrink-0 ml-4">
-                        <div className={`px-3 py-1 text-sm font-medium rounded-full ${
-                          assessment.totalScore >= 80 ? 'bg-green-100 text-green-800' :
-                          assessment.totalScore >= 60 ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-red-100 text-red-800'
-                        }`}>
-                          {Math.round(assessment.totalScore)}%
-                        </div>
+                      <div className="flex items-center gap-1">
                         {assessment.recordedAudio && (
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              playRecordedAudio(assessment);
-                            }}
-                            className="text-gray-600 hover:text-blue-600 transition-colors p-1"
-                            title="Play recorded assessment"
-                          >
-                            <Volume2 className="h-4 w-4" />
+                          <button onClick={(e) => { e.stopPropagation(); playRecordedAudio(assessment); }}>
+                            <Volume2 className="h-2.5 w-2.5 text-gray-400 hover:text-blue-400" />
                           </button>
                         )}
+                        <ArrowRight className="h-2.5 w-2.5 text-gray-400 group-hover:text-blue-400" />
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-12">
-                  <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-600 mb-6 text-lg">No assessments yet</p>
-                  <button 
-                    onClick={startNewAssessment}
-                    className="flex items-center gap-2 mx-auto px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    <Plus className="h-5 w-5" />
-                    Start Your First Assessment
-                  </button>
+                <div className="flex-1 flex flex-col items-center justify-center">
+                  <FileText className="w-6 h-6 text-gray-500 mb-1" />
+                  <p className="text-[10px] text-gray-400">No results yet</p>
                 </div>
               )}
             </div>
-
-            {/* Debug Information - Improved Design */}
-            {showDebugInfo && interviewHistory.length > 0 && (
-              <div className="bg-gray-900/90 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-700 p-6">
-                <div className="flex justify-between items-center mb-4">
-                  <h4 className="text-lg font-semibold text-white">Recent Assessment Debug Info</h4>
-                  <button 
-                    onClick={() => setShowDebugInfo(false)}
-                    className="text-gray-400 hover:text-white transition-colors"
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-                  <div className="bg-gray-800/50 p-3 rounded-lg">
-                    <p className="text-gray-400 text-xs">Job Title</p>
-                    <p className="text-white font-medium truncate">{interviewHistory[0].jobTitle}</p>
-                  </div>
-                  <div className="bg-gray-800/50 p-3 rounded-lg">
-                    <p className="text-gray-400 text-xs">Total Score</p>
-                    <p className="text-white font-medium">{interviewHistory[0].totalScore}%</p>
-                  </div>
-                  <div className="bg-gray-800/50 p-3 rounded-lg">
-                    <p className="text-gray-400 text-xs">Duration</p>
-                    <p className="text-white font-medium">{interviewHistory[0].duration}s</p>
-                  </div>
-                  <div className="bg-gray-800/50 p-3 rounded-lg">
-                    <p className="text-gray-400 text-xs">Questions</p>
-                    <p className="text-white font-medium">{interviewHistory[0].questions?.length || 0}</p>
-                  </div>
-                  <div className="bg-gray-800/50 p-3 rounded-lg">
-                    <p className="text-gray-400 text-xs">Answers</p>
-                    <p className="text-white font-medium">{interviewHistory[0].answers?.length || 0}</p>
-                  </div>
-                  <div className="bg-gray-800/50 p-3 rounded-lg">
-                    <p className="text-gray-400 text-xs">Has Profile</p>
-                    <p className="text-white font-medium">{interviewHistory[0].profile ? 'Yes' : 'No'}</p>
-                  </div>
-                </div>
-                <div className="mt-4 p-3 bg-blue-900/20 rounded-lg border border-blue-700/50">
-                  <p className="text-blue-300 text-xs mb-2">Assessment ID:</p>
-                  <p className="text-blue-100 text-sm font-mono break-all">{interviewHistory[0].id}</p>
-                </div>
-              </div>
-            )}
           </div>
+        </div>
 
-          {/* Right Column - Today's Progress & Quick Actions & Assessment Types */}
-          <div className="space-y-6">
-            {/* Today's Progress */}
-            <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Today's Progress</h3>
-              <div className="space-y-4">
-                <div>
-                  <div className="flex justify-between text-sm text-gray-600 mb-2">
-                    <span>Sessions Completed</span>
-                    <span>{stats.todaySessions}</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className="bg-green-500 h-2 rounded-full transition-all duration-500"
-                      style={{ width: `${Math.min(stats.todaySessions * 25, 100)}%` }}
-                    ></div>
-                  </div>
-                </div>
-                <div>
-                  <div className="flex justify-between text-sm text-gray-600 mb-2">
-                    <span>Weekly Progress</span>
-                    <span>{stats.weeklyProgress}%</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className="bg-blue-500 h-2 rounded-full transition-all duration-500"
-                      style={{ width: `${Math.max(stats.weeklyProgress, 0)}%` }}
-                    ></div>
-                  </div>
-                </div>
-              </div>
+        {/* Today's Progress Bar - Increased size */}
+        <div className="bg-white/10 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-700 p-5 mt-4">
+          <div className="flex items-center gap-4">
+            <div className="p-2 rounded-lg bg-blue-500/20">
+              <Calendar className="h-5 w-5 text-blue-400" />
             </div>
-
-            {/* Quick Actions */}
-            <div className="bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl shadow-lg p-6 text-white">
-              <h3 className="text-lg font-semibold mb-4">Quick Actions</h3>
-              <div className="space-y-3">
-                <button
-                  onClick={startNewAssessment}
-                  className="w-full bg-white text-blue-600 py-2 rounded-lg font-medium hover:bg-blue-50 transition-colors"
-                >
-                  Start New Assessment
-                </button>
-                {interviewHistory.length > 0 && (
-                  <button
-                    onClick={() => viewInterviewDetails(interviewHistory[0])}
-                    className="w-full bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors"
-                  >
-                    View Latest Results
-                  </button>
-                )}
+            <div className="flex-1">
+              <div className="flex justify-between text-sm text-gray-300 mb-2">
+                <span className="font-medium">Today's Progress</span>
+                <span className="font-semibold">{stats.todaySessions} session{stats.todaySessions !== 1 ? 's' : ''}</span>
               </div>
-            </div>
-
-            {/* Assessment Types */}
-            <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Assessment Types</h3>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 bg-blue-50 rounded-lg border border-blue-200 text-center">
-                  <Briefcase className="h-6 w-6 text-blue-600 mx-auto mb-2" />
-                  <p className="text-sm font-medium text-blue-800">Job Interview</p>
-                  <p className="text-xs text-blue-600">{stats.assessmentTypes.interview} sessions</p>
-                </div>
-                <div className="p-3 bg-purple-50 rounded-lg border border-purple-200 text-center">
-                  <GraduationCap className="h-6 w-6 text-purple-600 mx-auto mb-2" />
-                  <p className="text-sm font-medium text-purple-800">Academic Viva</p>
-                  <p className="text-xs text-purple-600">{stats.assessmentTypes.academicViva} sessions</p>
-                </div>
-                <div className="p-3 bg-green-50 rounded-lg border border-green-200 text-center">
-                  <MessageCircle className="h-6 w-6 text-green-600 mx-auto mb-2" />
-                  <p className="text-sm font-medium text-green-800">Communication</p>
-                  <p className="text-xs text-green-600">{stats.assessmentTypes.communicationTest} sessions</p>
-                </div>
-                <div className="p-3 bg-orange-50 rounded-lg border border-orange-200 text-center">
-                  <UserCheck className="h-6 w-6 text-orange-600 mx-auto mb-2" />
-                  <p className="text-sm font-medium text-orange-800">Confidence</p>
-                  <p className="text-xs text-orange-600">{stats.assessmentTypes.confidenceBuilding} sessions</p>
-                </div>
+              <div className="w-full bg-gray-700 rounded-full h-3">
+                <div 
+                  className="bg-gradient-to-r from-blue-500 to-purple-500 h-3 rounded-full"
+                  style={{ width: `${Math.min(stats.todaySessions * 25, 100)}%` }}
+                ></div>
               </div>
+              <p className="text-xs text-gray-400 mt-2">Complete 4 sessions to reach daily goal</p>
             </div>
           </div>
         </div>
+
+        {/* Resume Active Assessment Button */}
+        {hasActiveAssessment() && (
+          <div className="fixed bottom-4 right-4">
+            <button
+              onClick={resumeAssessment}
+              className="flex items-center gap-1 px-3 py-1.5 bg-gradient-to-r from-green-600 to-teal-600 text-white rounded-full text-xs font-semibold shadow-2xl border border-green-400"
+            >
+              <Zap className="h-3 w-3" />
+              Resume
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Assessment Details Modal */}
-      {showInterviewDetails && selectedInterview && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200">
-              <div className="flex justify-between items-center">
-                <h3 className="text-xl font-semibold text-gray-900">Assessment Details</h3>
-                <button 
-                  onClick={() => setShowInterviewDetails(false)}
-                  className="text-gray-400 hover:text-gray-600 text-2xl"
-                >
-                  ×
-                </button>
-              </div>
+      {showAssessmentDetails && selectedAssessment && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+          <div className="bg-gray-900/95 rounded-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto border border-gray-700">
+            <div className="p-4 border-b border-gray-700 flex justify-between">
+              <h3 className="text-lg font-semibold text-white">Assessment Details</h3>
+              <button onClick={() => setShowAssessmentDetails(false)} className="text-gray-400 hover:text-white">×</button>
             </div>
-            
-            <div className="p-6 space-y-6">
-              {/* Assessment Summary */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-blue-50 p-4 rounded-lg">
-                  <p className="text-sm text-blue-600">Assessment Type</p>
-                  <p className="font-semibold text-base">
-                    {getAssessmentTypeLabel(selectedInterview.assessmentType || 'interview')}
-                  </p>
+            <div className="p-4 space-y-4">
+              <div className="grid grid-cols-3 gap-2">
+                <div className="bg-blue-500/10 p-2 rounded">
+                  <p className="text-xs text-blue-400">Type</p>
+                  <p className="text-xs text-white">{getAssessmentTypeLabel(selectedAssessment.assessmentType || 'interview')}</p>
                 </div>
-                <div className="bg-green-50 p-4 rounded-lg">
-                  <p className="text-sm text-green-600">Score</p>
-                  <p className="font-semibold text-base">{selectedInterview.totalScore}%</p>
+                <div className="bg-green-500/10 p-2 rounded">
+                  <p className="text-xs text-green-400">Score</p>
+                  <p className={`text-xs font-bold ${getScoreColor(selectedAssessment.totalScore)}`}>{selectedAssessment.totalScore}%</p>
                 </div>
-                <div className="bg-purple-50 p-4 rounded-lg">
-                  <p className="text-sm text-purple-600">Duration</p>
-                  <p className="font-semibold text-base">{Math.round((selectedInterview.duration || 0) / 60)} minutes</p>
+                <div className="bg-purple-500/10 p-2 rounded">
+                  <p className="text-xs text-purple-400">Duration</p>
+                  <p className="text-xs text-white">{Math.round((selectedAssessment.duration || 0) / 60)} min</p>
                 </div>
               </div>
-
-              {/* Performance Summary */}
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h4 className="font-semibold text-gray-900 mb-3">Performance Summary</h4>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                  <div>
-                    <p className="text-gray-600">Questions Answered</p>
-                    <p className="font-semibold">{selectedInterview.answers?.length || 0}/{selectedInterview.questions?.length || 0}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-600">Completion Rate</p>
-                    <p className="font-semibold">
-                      {selectedInterview.questions?.length ? 
-                        Math.round(((selectedInterview.answers?.length || 0) / selectedInterview.questions.length) * 100) : 0}%
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-gray-600">Average Answer Score</p>
-                    <p className="font-semibold">{selectedInterview.totalScore}%</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-600">Assessment Type</p>
-                    <p className="font-semibold">{selectedInterview.isDynamic ? 'Dynamic AI' : 'Standard'}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Questions and Answers */}
-              <div>
-                <h4 className="text-lg font-semibold mb-4">Questions & Answers</h4>
-                <div className="space-y-4">
-                  {selectedInterview.questions?.map((question, index) => {
-                    const answer = selectedInterview.answers?.[index];
-                    return (
-                      <div key={index} className="border border-gray-200 rounded-lg p-4">
-                        <div className="flex justify-between items-start mb-2">
-                          <p className="font-medium text-gray-900 text-base">Q: {question.question}</p>
-                          {answer && (
-                            <span className={`px-2 py-1 text-xs rounded-full flex-shrink-0 ml-2 ${
-                              (answer.score || 0) >= 80 ? 'bg-green-100 text-green-800' :
-                              (answer.score || 0) >= 60 ? 'bg-yellow-100 text-yellow-800' :
-                              'bg-red-100 text-red-800'
-                            }`}>
-                              {answer.score}%
-                            </span>
-                          )}
-                        </div>
-                        {answer && (
-                          <div className="mt-2">
-                            <p className="text-sm text-gray-600">A: {answer.answer}</p>
-                            {answer.aiEvaluation && (
-                              <div className="mt-2 text-xs text-gray-500">
-                                <p><strong>Feedback:</strong> {answer.aiEvaluation.detailedFeedback}</p>
-                                {answer.aiEvaluation.strengths && (
-                                  <p className="mt-1"><strong>Strengths:</strong> {answer.aiEvaluation.strengths.join(', ')}</p>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex gap-4 pt-4 border-t border-gray-200">
-                <button 
-                  onClick={() => downloadInterviewReport(selectedInterview)}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  <Download className="h-4 w-4" />
-                  Download Report
-                </button>
-                <button 
-                  onClick={() => setShowInterviewDetails(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
-                >
-                  Close
-                </button>
-              </div>
+              <button 
+                onClick={() => downloadAssessmentReport(selectedAssessment)}
+                className="flex items-center gap-1 px-3 py-1.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded text-xs"
+              >
+                <Download className="h-3 w-3" /> Download Report
+              </button>
             </div>
           </div>
         </div>

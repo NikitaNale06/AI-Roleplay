@@ -1,17 +1,14 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { 
   ArrowLeft, 
-  Upload, 
   Sparkles, 
-  FileText, 
   AlertCircle, 
   CheckCircle,
   Brain,
   Zap,
-  Settings,
   Plus,
   X,
   Search,
@@ -20,24 +17,24 @@ import {
   MessageCircle,
   UserCheck,
   Users,
-  Briefcase,
   Code,
   Target,
   Lightbulb,
-  Mic
+  Mic,
+  Play,
+  Star,
+  Trophy
 } from 'lucide-react';
 
 // Define interfaces
 interface IFormInput {
   title: string;
   description: string;
-  organization?: string;
   experience: string;
   skills: string[];
-  resumeFile?: File;
   assessmentType: string;
   subject?: string;
-  domain?: string;
+  scenario?: string;
   focusArea?: string;
   difficulty: 'easy' | 'medium' | 'hard';
   numberOfQuestions: number;
@@ -55,113 +52,182 @@ interface GeneratedQuestion {
   fieldRelevant: boolean;
 }
 
-// Tab configuration
-const interviewTabs = [
+// Assessment types with improved colors
+const assessmentTypes = [
   {
     id: 'technical',
     name: 'Technical Interview',
     description: 'Coding, algorithms, system design and technical problem-solving',
     icon: Code,
-    color: 'from-blue-500 to-cyan-500',
-    bgColor: 'bg-gradient-to-br from-blue-500 to-cyan-500',
-    category: 'professional'
+    color: 'from-blue-500 to-cyan-400',
+    bgColor: 'bg-gradient-to-br from-blue-500/90 to-cyan-500/90',
+    glowColor: 'shadow-[0_0_30px_rgba(59,130,246,0.3)]',
+    borderColor: 'border-blue-400/50',
+    category: 'professional',
+    image: '👨‍💻',
+    skillCategory: 'technical'
   },
   {
     id: 'academic-viva',
     name: 'Academic Viva',
     description: 'Thesis defense, subject knowledge and research methodology',
     icon: GraduationCap,
-    color: 'from-purple-500 to-pink-500',
-    bgColor: 'bg-gradient-to-br from-purple-500 to-pink-500',
-    category: 'academic'
+    color: 'from-purple-500 to-pink-400',
+    bgColor: 'bg-gradient-to-br from-purple-500/90 to-pink-500/90',
+    glowColor: 'shadow-[0_0_30px_rgba(168,85,247,0.3)]',
+    borderColor: 'border-purple-400/50',
+    category: 'academic',
+    image: '🎓',
+    skillCategory: 'academic'
   },
   {
     id: 'communication-test',
     name: 'Communication Test',
     description: 'Public speaking, presentation skills and verbal communication',
     icon: MessageCircle,
-    color: 'from-green-500 to-emerald-500',
-    bgColor: 'bg-gradient-to-br from-green-500 to-emerald-500',
-    category: 'communication'
+    color: 'from-green-500 to-emerald-400',
+    bgColor: 'bg-gradient-to-br from-green-500/90 to-emerald-500/90',
+    glowColor: 'shadow-[0_0_30px_rgba(34,197,94,0.3)]',
+    borderColor: 'border-green-400/50',
+    category: 'communication',
+    image: '🎤',
+    skillCategory: 'communication'
   },
   {
     id: 'behavioral',
     name: 'Behavioral Interview',
     description: 'Situational judgment, teamwork and interpersonal skills',
     icon: Users,
-    color: 'from-orange-500 to-red-500',
-    bgColor: 'bg-gradient-to-br from-orange-500 to-red-500',
-    category: 'professional'
+    color: 'from-orange-500 to-red-400',
+    bgColor: 'bg-gradient-to-br from-orange-500/90 to-red-500/90',
+    glowColor: 'shadow-[0_0_30px_rgba(249,115,22,0.3)]',
+    borderColor: 'border-orange-400/50',
+    category: 'professional',
+    image: '🤝',
+    skillCategory: 'behavioral'
   },
   {
     id: 'domain-specific',
     name: 'Domain Specific',
     description: 'Specialized questions for specific industries and fields',
     icon: Target,
-    color: 'from-indigo-500 to-purple-500',
-    bgColor: 'bg-gradient-to-br from-indigo-500 to-purple-500',
-    category: 'professional'
+    color: 'from-indigo-500 to-purple-400',
+    bgColor: 'bg-gradient-to-br from-indigo-500/90 to-purple-500/90',
+    glowColor: 'shadow-[0_0_30px_rgba(99,102,241,0.3)]',
+    borderColor: 'border-indigo-400/50',
+    category: 'professional',
+    image: '🎯',
+    skillCategory: 'domain'
   },
   {
     id: 'conceptual',
     name: 'Conceptual Understanding',
     description: 'Deep conceptual knowledge and critical thinking assessment',
     icon: Lightbulb,
-    color: 'from-yellow-500 to-amber-500',
-    bgColor: 'bg-gradient-to-br from-yellow-500 to-amber-500',
-    category: 'academic'
+    color: 'from-yellow-500 to-amber-400',
+    bgColor: 'bg-gradient-to-br from-yellow-500/90 to-amber-500/90',
+    glowColor: 'shadow-[0_0_30px_rgba(234,179,8,0.3)]',
+    borderColor: 'border-yellow-400/50',
+    category: 'academic',
+    image: '💡',
+    skillCategory: 'conceptual'
   },
   {
     id: 'confidence-building',
     name: 'Confidence Building',
     description: 'Build confidence through structured speaking practice',
     icon: UserCheck,
-    color: 'from-pink-500 to-rose-500',
-    bgColor: 'bg-gradient-to-br from-pink-500 to-rose-500',
-    category: 'personal'
+    color: 'from-pink-500 to-rose-400',
+    bgColor: 'bg-gradient-to-br from-pink-500/90 to-rose-500/90',
+    glowColor: 'shadow-[0_0_30px_rgba(236,72,153,0.3)]',
+    borderColor: 'border-pink-400/50',
+    category: 'personal',
+    image: '⭐',
+    skillCategory: 'confidence'
   },
   {
     id: 'general-practice',
     name: 'General Practice',
     description: 'Everyday communication and casual conversation practice',
     icon: Mic,
-    color: 'from-gray-500 to-blue-500',
-    bgColor: 'bg-gradient-to-br from-gray-500 to-blue-500',
-    category: 'communication'
+    color: 'from-gray-500 to-blue-400',
+    bgColor: 'bg-gradient-to-br from-gray-500/90 to-blue-500/90',
+    glowColor: 'shadow-[0_0_30px_rgba(107,114,128,0.3)]',
+    borderColor: 'border-gray-400/50',
+    category: 'communication',
+    image: '💬',
+    skillCategory: 'general'
   }
 ];
+
+// Component for the animated gaming background
+function GamingBackground() {
+  return (
+    <div className="absolute inset-0 z-0 overflow-hidden bg-gradient-to-b from-gray-950 via-purple-950/30 to-gray-950">
+      {/* Subtle background pattern */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-purple-900/10 via-gray-950 to-gray-950"></div>
+      
+      {/* Animated particles */}
+      <div className="absolute inset-0">
+        {Array.from({ length: 30 }).map((_, i) => (
+          <div
+            key={i}
+            className="absolute h-px w-px animate-pulse rounded-full bg-blue-400/20"
+            style={{
+              top: `${Math.random() * 100}%`,
+              left: `${Math.random() * 100}%`,
+              animationDelay: `${Math.random() * 2}s`,
+              animationDuration: `${1 + Math.random() * 2}s`
+            }}
+          ></div>
+        ))}
+      </div>
+      
+      {/* Subtle glow effects */}
+      <div className="absolute left-1/4 top-1/3 h-48 w-48 animate-pulse rounded-full bg-gradient-to-r from-blue-500/10 to-purple-600/10 blur-3xl"></div>
+      <div className="absolute bottom-1/4 right-1/4 h-64 w-64 animate-pulse rounded-full bg-gradient-to-r from-purple-500/10 to-pink-600/10 blur-3xl animation-delay-1000"></div>
+
+      <style jsx>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 0.1; }
+          50% { opacity: 0.2; }
+        }
+        .animate-pulse {
+          animation: pulse 4s infinite ease-in-out;
+        }
+        .animation-delay-1000 {
+          animation-delay: 1s;
+        }
+      `}</style>
+    </div>
+  );
+}
 
 const InterviewCreatePage = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   
-  // Get assessment type from URL parameters or default to technical
   const initialTab = searchParams?.get('type') || 'technical';
-  const initialCategory = searchParams?.get('category') || 'professional';
   
   // State management
   const [activeTab, setActiveTab] = useState(initialTab);
+  const [showModal, setShowModal] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [useAI, setUseAI] = useState(true);
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  const [resumeText, setResumeText] = useState<string>('');
   const [newSkill, setNewSkill] = useState('');
-  const [detectedField, setDetectedField] = useState<string>('');
   const [searchSkill, setSearchSkill] = useState('');
 
   // Form data state
   const [formData, setFormData] = useState<IFormInput>({
     title: '',
     description: '',
-    organization: '',
     experience: '2-5 years',
     skills: [],
-    resumeFile: undefined,
     assessmentType: activeTab,
     subject: '',
-    domain: '',
+    scenario: '',
     focusArea: '',
     difficulty: 'medium',
     numberOfQuestions: 8
@@ -170,18 +236,22 @@ const InterviewCreatePage = () => {
   // Form validation
   const [formErrors, setFormErrors] = useState<{[key: string]: string}>({});
 
-  // Get current tab info
-  const currentTab = interviewTabs.find(tab => tab.id === activeTab) || interviewTabs[0];
+  // Get current assessment type info
+  const currentType = assessmentTypes.find(type => type.id === activeTab) || assessmentTypes[0];
 
-  // Update form when tab changes
-  useEffect(() => {
+  // Handle tab selection with modal
+  const handleTabSelect = (tabId: string) => {
+    setActiveTab(tabId);
+    setShowModal(true);
+    
+    // Reset form for new tab
     setFormData(prev => ({
       ...prev,
-      assessmentType: activeTab,
+      assessmentType: tabId,
       title: '',
       description: '',
       subject: '',
-      domain: '',
+      scenario: '',
       focusArea: '',
       skills: []
     }));
@@ -189,93 +259,61 @@ const InterviewCreatePage = () => {
     // Set default values based on assessment type
     const defaultValues: Record<string, Partial<IFormInput>> = {
       'technical': {
-        title: 'Software Engineer Position',
-        description: 'Technical interview covering algorithms, data structures, and system design',
-        experience: '2-5 years'
+        title: 'Technical Interview Preparation',
+        description: 'Prepare for technical interviews with coding challenges and system design questions',
+        experience: '2-5 years',
+        difficulty: 'medium'
       },
       'academic-viva': {
-        title: 'Thesis Defense Preparation',
-        description: 'Comprehensive viva covering research methodology, findings, and subject knowledge',
-        experience: '5-8 years'
+        title: 'Academic Viva Voce Preparation',
+        description: 'Prepare for academic viva voce examinations and thesis defense',
+        experience: '5-8 years',
+        difficulty: 'medium'
       },
       'communication-test': {
-        title: 'Public Speaking Assessment',
-        description: 'Evaluation of communication skills, presentation abilities, and verbal clarity',
-        experience: '0-2 years'
+        title: 'Communication Skills Assessment',
+        description: 'Improve public speaking, presentation, and verbal communication skills',
+        experience: '0-2 years',
+        difficulty: 'easy'
       },
       'behavioral': {
-        title: 'Behavioral Competency Assessment',
-        description: 'Situational questions testing teamwork, leadership, and problem-solving approach',
-        experience: '2-5 years'
+        title: 'Behavioral Interview Practice',
+        description: 'Practice behavioral interview questions and situational judgment',
+        experience: '2-5 years',
+        difficulty: 'medium'
       },
       'domain-specific': {
-        title: 'Domain Expert Interview',
-        description: 'Specialized questions for specific industry knowledge and expertise',
-        experience: '5-8 years'
+        title: 'Domain Specific Interview',
+        description: 'Prepare for industry-specific interviews and specialized knowledge assessment',
+        experience: '5-8 years',
+        difficulty: 'hard'
       },
       'conceptual': {
         title: 'Conceptual Understanding Test',
-        description: 'Assessment of deep conceptual knowledge and critical thinking abilities',
-        experience: '2-5 years'
+        description: 'Assess deep conceptual knowledge and critical thinking abilities',
+        experience: '2-5 years',
+        difficulty: 'hard'
       },
       'confidence-building': {
         title: 'Confidence Building Session',
-        description: 'Structured practice to build speaking confidence and communication skills',
-        experience: '0-2 years'
+        description: 'Build speaking confidence and overcome communication anxiety',
+        experience: '0-2 years',
+        difficulty: 'easy'
       },
       'general-practice': {
-        title: 'General Communication ',
-        description: 'Casual conversation practice for everyday communication situations',
-        experience: '0-2 years'
+        title: 'General Communication Practice',
+        description: 'Practice everyday communication and casual conversation skills',
+        experience: '0-2 years',
+        difficulty: 'easy'
       }
     };
 
-    if (defaultValues[activeTab]) {
+    if (defaultValues[tabId]) {
       setFormData(prev => ({
         ...prev,
-        ...defaultValues[activeTab]
+        ...defaultValues[tabId]
       }));
     }
-
-    // Auto-detect field
-    const field = detectField(activeTab, '');
-    setDetectedField(field);
-  }, [activeTab]);
-
-  // Detect field based on tab and input
-  const detectField = (tab: string, title: string): string => {
-    // First check the title for specific keywords
-    const titleLower = title.toLowerCase();
-    
-    if (titleLower.includes('civil') || titleLower.includes('engineering')) {
-      return 'Engineering & Technology';
-    }
-    if (titleLower.includes('government') || titleLower.includes('public')) {
-      return 'Government & Civil Services';
-    }
-    if (titleLower.includes('health') || titleLower.includes('medical')) {
-      return 'Healthcare & Medical';
-    }
-    if (titleLower.includes('education') || titleLower.includes('teacher')) {
-      return 'Education & Academia';
-    }
-    if (titleLower.includes('legal') || titleLower.includes('law')) {
-      return 'Legal & Judiciary';
-    }
-
-    // Fallback to tab-based detection
-    const fieldMap: Record<string, string> = {
-      'technical': 'Technology & Engineering',
-      'academic-viva': 'Education & Academia',
-      'communication-test': 'Communication & Public Speaking',
-      'behavioral': 'Professional & Interpersonal Skills',
-      'domain-specific': 'Specialized Industry Knowledge',
-      'conceptual': 'Conceptual & Critical Thinking',
-      'confidence-building': 'Personal Development',
-      'general-practice': 'General Communication'
-    };
-    
-    return fieldMap[tab] || 'Professional Assessment';
   };
 
   // Generate description based on title and assessment type
@@ -286,7 +324,7 @@ const InterviewCreatePage = () => {
     
     // Common keywords mapping to description templates
     const descriptionTemplates: Record<string, string> = {
-      'technical': `Comprehensive technical assessment for ${title} covering relevant technologies, problem-solving skills, and technical competencies required for the role.`,
+      'technical': `Comprehensive technical assessment for ${title} covering relevant technologies, problem-solving skills, and technical competencies.`,
       'academic-viva': `Academic viva voce examination for ${title} focusing on research methodology, theoretical knowledge, and subject matter expertise.`,
       'communication-test': `Communication skills assessment for ${title} evaluating verbal communication, presentation abilities, and interpersonal skills.`,
       'behavioral': `Behavioral competency assessment for ${title} examining situational judgment, teamwork, leadership qualities, and professional conduct.`,
@@ -296,30 +334,7 @@ const InterviewCreatePage = () => {
       'general-practice': `General communication practice for ${title} covering everyday conversation skills and practical communication scenarios.`
     };
 
-    // Field-specific enhancements
-    const fieldEnhancements: Record<string, string> = {
-      'software': 'including programming concepts, system design, and software development practices',
-      'engineering': 'covering engineering principles, technical specifications, and project requirements',
-      'medical': 'focusing on medical knowledge, patient care, and healthcare protocols',
-      'education': 'emphasizing teaching methodologies, curriculum knowledge, and educational practices',
-      'legal': 'addressing legal principles, case analysis, and regulatory compliance',
-      'business': 'covering business strategies, management principles, and commercial awareness',
-      'research': 'focusing on research methodology, data analysis, and academic rigor',
-      'management': 'emphasizing leadership skills, strategic planning, and team management',
-      'sales': 'covering customer engagement, sales techniques, and market knowledge',
-      'design': 'focusing on creative thinking, design principles, and user experience'
-    };
-
-    let baseDescription = descriptionTemplates[assessmentType] || `Professional assessment for ${title} covering relevant skills and competencies.`;
-
-    // Enhance description based on keywords in title
-    Object.entries(fieldEnhancements).forEach(([keyword, enhancement]) => {
-      if (titleLower.includes(keyword)) {
-        baseDescription = baseDescription.replace('.', ` ${enhancement}.`);
-      }
-    });
-
-    return baseDescription;
+    return descriptionTemplates[assessmentType] || `Assessment for ${title} covering relevant skills and competencies.`;
   };
 
   // Handle title change and auto-generate description
@@ -330,16 +345,12 @@ const InterviewCreatePage = () => {
       description: generateDescriptionFromTitle(value, activeTab)
     }));
     
-    // Auto-detect field
-    const field = detectField(activeTab, value);
-    setDetectedField(field);
-    
     if (formErrors.title) {
       setFormErrors(prev => ({ ...prev, title: '' }));
     }
   };
 
-  // Handle description change separately (if user wants to customize)
+  // Handle description change separately
   const handleDescriptionChange = (value: string) => {
     setFormData(prev => ({ ...prev, description: value }));
     if (formErrors.description) {
@@ -347,58 +358,27 @@ const InterviewCreatePage = () => {
     }
   };
 
-  // Get field-specific skills for current tab
-  const getFieldSpecificSkills = (): string[] => {
-    const skillSets: Record<string, string[]> = {
-      'technical': [
-        'Algorithms', 'Data Structures', 'System Design', 'Database Management',
-        'API Development', 'Testing', 'Debugging', 'Performance Optimization',
-        'Security', 'Cloud Computing', 'DevOps', 'Mobile Development'
-      ],
-      'academic-viva': [
-        'Research Methodology', 'Literature Review', 'Data Analysis', 'Thesis Writing',
-        'Academic Writing', 'Critical Thinking', 'Presentation Skills', 'Statistical Analysis',
-        'Experimental Design', 'Peer Review', 'Academic Ethics', 'Publication Process'
-      ],
-      'communication-test': [
-        'Public Speaking', 'Active Listening', 'Presentation Skills', 'Body Language',
-        'Voice Modulation', 'Audience Engagement', 'Storytelling', 'Persuasion',
-        'Clarity of Expression', 'Confidence', 'Vocabulary', 'Non-verbal Communication'
-      ],
-      'behavioral': [
-        'Teamwork', 'Leadership', 'Conflict Resolution', 'Problem Solving',
-        'Adaptability', 'Time Management', 'Decision Making', 'Emotional Intelligence',
-        'Stress Management', 'Collaboration', 'Initiative', 'Accountability'
-      ],
-      'domain-specific': [
-        'Industry Knowledge', 'Regulatory Compliance', 'Market Trends', 'Technical Expertise',
-        'Best Practices', 'Risk Management', 'Quality Assurance', 'Stakeholder Management',
-        'Strategic Planning', 'Innovation', 'Competitive Analysis', 'Customer Insight'
-      ],
-      'conceptual': [
-        'Critical Thinking', 'Analytical Reasoning', 'Problem Decomposition', 'Pattern Recognition',
-        'Abstract Thinking', 'Logical Reasoning', 'Systems Thinking', 'Conceptual Modeling',
-        'Hypothesis Testing', 'Evidence Evaluation', 'Theoretical Understanding', 'Knowledge Synthesis'
-      ],
-      'confidence-building': [
-        'Self-Confidence', 'Positive Thinking', 'Stress Management', 'Mindfulness',
-        'Self-Awareness', 'Assertiveness', 'Emotional Intelligence', 'Resilience',
-        'Growth Mindset', 'Self-Esteem', 'Communication', 'Body Language'
-      ],
-      'general-practice': [
-        'Everyday Communication', 'Conversation Skills', 'Social Interactions', 'Active Listening',
-        'Small Talk', 'Cultural Awareness', 'Empathy', 'Friendliness',
-        'Clarity', 'Patience', 'Adaptability', 'Open-mindedness'
-      ]
-    };
-
-    return skillSets[activeTab] || skillSets.technical;
+  // Handle subject/scenario/focusArea change
+  const handleSubjectChange = (value: string) => {
+    setFormData(prev => ({ ...prev, subject: value }));
+    if (formErrors.subject) {
+      setFormErrors(prev => ({ ...prev, subject: '' }));
+    }
   };
 
-  // Filter skills based on search
-  const filteredSkills = getFieldSpecificSkills().filter(skill =>
-    skill.toLowerCase().includes(searchSkill.toLowerCase())
-  );
+  const handleScenarioChange = (value: string) => {
+    setFormData(prev => ({ ...prev, scenario: value }));
+    if (formErrors.scenario) {
+      setFormErrors(prev => ({ ...prev, scenario: '' }));
+    }
+  };
+
+  const handleFocusAreaChange = (value: string) => {
+    setFormData(prev => ({ ...prev, focusArea: value }));
+    if (formErrors.focusArea) {
+      setFormErrors(prev => ({ ...prev, focusArea: '' }));
+    }
+  };
 
   // Handle form input changes
   const handleInputChange = (field: keyof IFormInput, value: string | string[] | number) => {
@@ -428,26 +408,6 @@ const InterviewCreatePage = () => {
     handleInputChange('skills', formData.skills.filter(skill => skill !== skillToRemove));
   };
 
-  // Handle file upload
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      if (file.type !== 'application/pdf') {
-        setError('Please upload a PDF file only.');
-        return;
-      }
-      
-      if (file.size > 5 * 1024 * 1024) { // 5MB limit
-        setError('File size should be less than 5MB.');
-        return;
-      }
-
-      setUploadedFile(file);
-      setError(null);
-      setResumeText(`Resume uploaded: ${file.name} (${Math.round(file.size / 1024)}KB)`);
-    }
-  };
-
   // Validate form
   const validateForm = (): boolean => {
     const errors: {[key: string]: string} = {};
@@ -463,173 +423,73 @@ const InterviewCreatePage = () => {
     }
     
     if (formData.skills.length === 0) {
-      errors.skills = 'Please add at least one relevant skill';
+      errors.skills = 'Please add at least one skill';
     }
 
     // Additional validation for specific tabs
     if (activeTab === 'academic-viva' && !formData.subject) {
-      errors.subject = 'Subject/Field is required for academic viva';
+      errors.subject = 'Subject is required for academic viva';
     }
 
-    if (activeTab === 'domain-specific' && !formData.domain) {
-      errors.domain = 'Domain/Industry is required';
+    if (activeTab === 'domain-specific' && !formData.scenario) {
+      errors.scenario = 'Domain/Scenario is required';
+    }
+
+    if (activeTab === 'conceptual' && !formData.focusArea) {
+      errors.focusArea = 'Focus area is required';
     }
 
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
-  // Generate questions using AI API
-  const generateQuestionsWithAI = async (): Promise<GeneratedQuestion[]> => {
-    // Create request body that matches the backend interface
-    const requestBody = {
-      jobTitle: formData.title,
-      jobDescription: formData.description,
-      companyName: formData.organization,
-      experience: formData.experience,
-      skills: formData.skills,
-      resumeText: resumeText,
-      fieldCategory: detectedField,
-      generateFieldSpecific: true
-    };
-
-    console.log('Sending request to API:', requestBody);
-
-    try {
-      const response = await fetch('/api/generate-questions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('API Error:', response.status, errorText);
-        throw new Error(`AI service unavailable (${response.status}) - using intelligent field-specific question generation.`);
-      }
-
-      const result = await response.json();
-      return result.questions || [];
-    } catch (error: any) {
-      console.error('API Request Failed:', error);
-      throw error;
-    }
-  };
-
-  // Generate field-specific smart questions based on tab
-  const generateUniversalSmartQuestions = (): GeneratedQuestion[] => {
-    const { title, description, skills, experience, subject, domain, focusArea, difficulty } = formData;
+  // Generate questions based on assessment type
+  const generateQuestions = (): GeneratedQuestion[] => {
+    const { subject, scenario, focusArea, difficulty } = formData;
     const questionBank: GeneratedQuestion[] = [];
 
-    // Generate questions based on active tab
     switch (activeTab) {
-      case 'technical':
-        questionBank.push(
-          {
-            id: 'tech-1',
-            question: `Explain the time and space complexity of a binary search algorithm and implement it in your preferred programming language.`,
-            type: 'technical',
-            difficulty: difficulty,
-            category: 'Algorithms & Complexity',
-            timeLimit: 180,
-            fieldRelevant: true
-          },
-          {
-            id: 'tech-2',
-            question: `Describe the differences between SQL and NoSQL databases. When would you choose one over the other for a project?`,
-            type: 'technical',
-            difficulty: difficulty,
-            category: 'Database Systems',
-            timeLimit: 150,
-            fieldRelevant: true
-          },
-          {
-            id: 'tech-3',
-            question: `How would you design a scalable web application that can handle millions of users? Discuss architecture, databases, and caching strategies.`,
-            type: 'technical',
-            difficulty: 'hard',
-            category: 'System Design',
-            timeLimit: 300,
-            fieldRelevant: true
-          }
-        );
-        break;
-
       case 'academic-viva':
         questionBank.push(
           {
             id: 'academic-1',
-            question: `Introduce your research topic in ${subject || 'your field'} and explain its significance and contribution to the academic community.`,
+            question: `Introduce your research topic in ${subject || 'your subject'} and explain its significance in the academic field.`,
             type: 'theoretical',
             difficulty: difficulty,
-            category: 'Research Significance',
+            category: 'Research Introduction',
             timeLimit: 180,
             fieldRelevant: true
           },
           {
             id: 'academic-2',
-            question: `What research methodology did you employ and why was this approach most suitable for your study compared to alternatives?`,
+            question: `What research methodology did you use for your study on ${subject || 'this topic'} and why was it appropriate?`,
             type: 'methodological',
             difficulty: difficulty,
             category: 'Research Methodology',
             timeLimit: 240,
             fieldRelevant: true
-          },
-          {
-            id: 'academic-3',
-            question: `Discuss the limitations of your research and how they might affect the validity and generalizability of your findings.`,
-            type: 'critical',
-            difficulty: 'hard',
-            category: 'Critical Analysis',
-            timeLimit: 200,
-            fieldRelevant: true
           }
         );
         break;
 
-      case 'communication-test':
+      case 'technical':
         questionBank.push(
           {
-            id: 'comm-1',
-            question: `Describe a complex technical concept from your field to someone with no background knowledge. Focus on clarity and simplicity.`,
+            id: 'tech-1',
+            question: `Explain a key concept in ${subject || 'your technical field'} to someone with no background in the area.`,
+            type: 'technical',
+            difficulty: difficulty,
+            category: 'Technical Explanation',
+            timeLimit: 180,
+            fieldRelevant: true
+          },
+          {
+            id: 'tech-2',
+            question: `How would you approach solving a complex problem in ${subject || 'your field'}?`,
             type: 'practical',
             difficulty: difficulty,
-            category: 'Explanation Skills',
-            timeLimit: 180,
-            fieldRelevant: true
-          },
-          {
-            id: 'comm-2',
-            question: `How would you handle a situation where your audience seems disengaged or confused during an important presentation?`,
-            type: 'situational',
-            difficulty: difficulty,
-            category: 'Audience Engagement',
+            category: 'Problem Solving',
             timeLimit: 150,
-            fieldRelevant: true
-          }
-        );
-        break;
-
-      case 'behavioral':
-        questionBank.push(
-          {
-            id: 'behavioral-1',
-            question: `Describe a time when you had to work with a difficult team member. How did you handle the situation and what was the outcome?`,
-            type: 'behavioral',
-            difficulty: difficulty,
-            category: 'Teamwork & Conflict',
-            timeLimit: 180,
-            fieldRelevant: true
-          },
-          {
-            id: 'behavioral-2',
-            question: `Tell me about a situation where you had to make an important decision with incomplete information. What was your process?`,
-            type: 'situational',
-            difficulty: difficulty,
-            category: 'Decision Making',
-            timeLimit: 160,
             fieldRelevant: true
           }
         );
@@ -639,7 +499,7 @@ const InterviewCreatePage = () => {
         questionBank.push(
           {
             id: 'domain-1',
-            question: `What are the current major trends and challenges in the ${domain || 'your industry'} domain, and how are they impacting business strategies?`,
+            question: `Describe the current challenges and opportunities in the ${scenario || 'your industry'} domain.`,
             type: 'domain-specific',
             difficulty: difficulty,
             category: 'Industry Knowledge',
@@ -648,10 +508,10 @@ const InterviewCreatePage = () => {
           },
           {
             id: 'domain-2',
-            question: `Describe a complex problem specific to ${domain || 'your field'} and how you would approach solving it.`,
-            type: 'domain-specific',
+            question: `How would you handle a critical situation specific to ${scenario || 'your field'}?`,
+            type: 'situational',
             difficulty: 'hard',
-            category: 'Problem Solving',
+            category: 'Domain Expertise',
             timeLimit: 220,
             fieldRelevant: true
           }
@@ -662,16 +522,16 @@ const InterviewCreatePage = () => {
         questionBank.push(
           {
             id: 'conceptual-1',
-            question: `Explain the fundamental concepts behind ${focusArea || 'your area of expertise'} as if you were teaching it to a beginner.`,
+            question: `Explain the fundamental concepts of ${focusArea || 'your focus area'} as if teaching a beginner.`,
             type: 'conceptual',
             difficulty: difficulty,
-            category: 'Fundamental Concepts',
+            category: 'Concept Explanation',
             timeLimit: 180,
             fieldRelevant: true
           },
           {
             id: 'conceptual-2',
-            question: `What are the key assumptions and limitations of the main theories in ${focusArea || 'your field'}?`,
+            question: `What are the key theories and their limitations in ${focusArea || 'this field'}?`,
             type: 'critical',
             difficulty: 'hard',
             category: 'Theoretical Analysis',
@@ -681,58 +541,26 @@ const InterviewCreatePage = () => {
         );
         break;
 
-      case 'confidence-building':
-        questionBank.push(
-          {
-            id: 'confidence-1',
-            question: `Tell me about a time when you successfully overcame a challenging situation. What did you learn about yourself?`,
-            type: 'behavioral',
-            difficulty: 'easy',
-            category: 'Self-Reflection',
-            timeLimit: 180,
-            fieldRelevant: true
-          },
-          {
-            id: 'confidence-2',
-            question: `Describe your strengths and how they help you in challenging situations.`,
-            type: 'reflective',
-            difficulty: 'medium',
-            category: 'Self-Awareness',
-            timeLimit: 160,
-            fieldRelevant: true
-          }
-        );
-        break;
-
-      case 'general-practice':
+      default:
+        // For other assessment types, use generic questions
         questionBank.push(
           {
             id: 'general-1',
-            question: `Tell me about yourself and your interests outside of work/studies.`,
+            question: `Describe your experience and approach to this assessment.`,
             type: 'behavioral',
-            difficulty: 'easy',
-            category: 'Personal Introduction',
+            difficulty: difficulty,
+            category: 'General',
             timeLimit: 120,
-            fieldRelevant: true
-          },
-          {
-            id: 'general-2',
-            question: `Describe a recent book, movie, or news event that interested you and explain why it caught your attention.`,
-            type: 'conversational',
-            difficulty: 'easy',
-            category: 'General Knowledge',
-            timeLimit: 150,
             fieldRelevant: true
           }
         );
-        break;
     }
 
     // Add more questions to reach the desired count
     while (questionBank.length < formData.numberOfQuestions) {
       questionBank.push({
         id: `auto-${questionBank.length + 1}`,
-        question: `Additional ${currentTab.name.toLowerCase()} question about ${skills[questionBank.length % skills.length] || 'relevant topic'}.`,
+        question: `Additional question about ${formData.skills[questionBank.length % formData.skills.length] || 'relevant topic'}.`,
         type: 'conceptual',
         difficulty: difficulty,
         category: 'Additional Questions',
@@ -760,732 +588,702 @@ const InterviewCreatePage = () => {
 
       if (useAI) {
         try {
-          questions = await generateQuestionsWithAI();
+          // Try to generate via AI
+          const response = await fetch('/api/generate-questions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              assessmentType: activeTab,
+              title: formData.title,
+              description: formData.description,
+              experience: formData.experience,
+              skills: formData.skills,
+              subject: formData.subject,
+              scenario: formData.scenario,
+              focusArea: formData.focusArea,
+              difficulty: formData.difficulty,
+              numberOfQuestions: formData.numberOfQuestions
+            }),
+          });
+
+          if (response.ok) {
+            const result = await response.json();
+            questions = (result.questions || []).map((question: string, index: number) => ({
+              id: `ai-generated-${index + 1}`,
+              question: question,
+              type: 'conversational' as const,
+              difficulty: formData.difficulty,
+              category: result.fieldCategory || 'General',
+              timeLimit: 120,
+              fieldRelevant: true
+            }));
+            console.log(`✅ Generated ${questions.length} questions via AI`);
+          } else {
+            throw new Error('AI service unavailable');
+          }
         } catch (aiError: any) {
-          console.warn('AI generation failed, using intelligent field-specific fallback:', aiError.message);
-          setSuccess('AI service unavailable - using intelligent field-specific question generation.');
-          questions = generateUniversalSmartQuestions();
+          console.warn('AI generation failed, using intelligent fallback:', aiError.message);
+          setSuccess('AI service unavailable - using intelligent question generation.');
+          questions = generateQuestions();
         }
       } else {
-        questions = generateUniversalSmartQuestions();
+        questions = generateQuestions();
+        console.log(`✅ Generated ${questions.length} questions manually`);
       }
 
       if (questions.length === 0) {
         throw new Error('No questions were generated. Please check your inputs and try again.');
       }
 
-      // Create interview profile
-      const interviewProfile = {
+      // Create COMPLETE assessment profile
+      const assessmentProfile = {
         title: formData.title,
         description: formData.description,
-        organization: formData.organization || 'Organization',
         experience: formData.experience,
         skills: formData.skills,
-        fieldCategory: detectedField,
-        resumeUploaded: !!uploadedFile,
-        createdAt: new Date().toISOString(),
         assessmentType: activeTab,
         subject: formData.subject,
-        domain: formData.domain,
+        scenario: formData.scenario,
         focusArea: formData.focusArea,
-        difficulty: formData.difficulty
+        difficulty: formData.difficulty,
+        fieldCategory: formData.subject || formData.scenario || formData.focusArea || 'General',
+        numberOfQuestions: formData.numberOfQuestions,
+        createdAt: new Date().toISOString()
       };
 
-      // Create interview session
-      const interviewSession = {
-        profile: interviewProfile,
-        questions: questions,
-        fieldSpecific: true,
-        createdAt: new Date().toISOString(),
-        type: useAI ? 'ai-field-adaptive' : 'smart-field-specific',
-        assessmentType: activeTab
-      };
+      console.log('💾 Saving profile:', {
+        assessmentType: assessmentProfile.assessmentType,
+        fieldCategory: assessmentProfile.fieldCategory,
+        skills: assessmentProfile.skills,
+        subject: assessmentProfile.subject
+      });
+
+      // Extract just the question texts for the interview
+      const questionTexts = questions.map(q => q.question);
 
       // Save to localStorage
-      localStorage.setItem('interviewProfile', JSON.stringify(interviewProfile));
-      localStorage.setItem('currentInterview', JSON.stringify(interviewSession));
+      localStorage.setItem('interviewProfile', JSON.stringify(assessmentProfile));
       
-      // Clear any old active interview
-      localStorage.removeItem('activeInterview');
+      localStorage.setItem('generatedQuestions', JSON.stringify({
+        questions: questionTexts,
+        assessmentType: activeTab,
+        fieldCategory: assessmentProfile.fieldCategory,
+        skills: formData.skills,
+        count: questions.length,
+        generatedAt: new Date().toISOString()
+      }));
 
-      const fieldSpecificCount = questions.filter(q => q.fieldRelevant).length;
-      const successMessage = `Successfully generated ${questions.length} ${currentTab.name.toLowerCase()} questions! ${fieldSpecificCount} field-specific questions included.`;
+      localStorage.setItem('currentAssessment', JSON.stringify({
+        profile: assessmentProfile,
+        questions: questionTexts,
+        createdAt: new Date().toISOString(),
+        type: useAI ? 'ai-enhanced' : 'standard',
+        assessmentType: activeTab
+      }));
+
+      localStorage.removeItem('activeAssessment');
+
+      const successMessage = `Successfully created ${questions.length} ${currentType.name.toLowerCase()} questions!`;
+      
+      console.log('✅ Profile saved successfully:', {
+        assessmentType: activeTab,
+        fieldCategory: assessmentProfile.fieldCategory,
+        questionCount: questions.length
+      });
       
       setSuccess(successMessage);
       
       // Navigate to start page
       setTimeout(() => {
-        router.push('/dashboard/interview/start');
+        router.push('/dashboard/interview/active');
       }, 2000);
 
     } catch (error: any) {
       console.error('Error generating questions:', error);
-      setError(error.message || 'Failed to generate questions. Please try again.');
+      setError(error.message || 'Failed to create assessment. Please try again.');
     } finally {
       setIsGenerating(false);
     }
   };
 
-  // Get dynamic field configuration based on title and description
-  const getDynamicFieldConfig = () => {
-    const title = formData.title.toLowerCase();
-    const description = formData.description.toLowerCase();
-    
-    // Default values
-    let detectedField = 'Professional';
-    let skillLabel = 'Required Skills & Competencies';
-    let skillPlaceholder = 'Add relevant skills and competencies...';
-    
-    // Field detection based on keywords
-    if (title.includes('civil') || title.includes('engineering') || description.includes('civil') || description.includes('engineering')) {
-      detectedField = 'Civil Engineering';
-      skillLabel = 'Engineering Skills & Competencies';
-      skillPlaceholder = 'e.g., Structural Design, Project Management, AutoCAD, Site Inspection...';
-    } else if (title.includes('software') || title.includes('developer') || title.includes('programming') || description.includes('code') || description.includes('programming')) {
-      detectedField = 'Software Development';
-      skillLabel = 'Technical Skills & Technologies';
-      skillPlaceholder = 'e.g., JavaScript, React, Node.js, Python, System Design...';
-    } else if (title.includes('medical') || title.includes('health') || title.includes('doctor') || description.includes('patient') || description.includes('clinical')) {
-      detectedField = 'Healthcare & Medical';
-      skillLabel = 'Medical Skills & Competencies';
-      skillPlaceholder = 'e.g., Patient Care, Medical Diagnosis, Clinical Procedures, Healthcare Protocols...';
-    } else if (title.includes('teacher') || title.includes('education') || title.includes('academic') || description.includes('student') || description.includes('teaching')) {
-      detectedField = 'Education';
-      skillLabel = 'Teaching Skills & Competencies';
-      skillPlaceholder = 'e.g., Curriculum Development, Classroom Management, Student Assessment, Educational Technology...';
-    } else if (title.includes('legal') || title.includes('law') || title.includes('attorney') || description.includes('legal') || description.includes('case')) {
-      detectedField = 'Legal';
-      skillLabel = 'Legal Skills & Competencies';
-      skillPlaceholder = 'e.g., Legal Research, Case Analysis, Client Counseling, Litigation...';
-    } else if (title.includes('manager') || title.includes('leadership') || description.includes('team') || description.includes('management')) {
-      detectedField = 'Management';
-      skillLabel = 'Management Skills & Competencies';
-      skillPlaceholder = 'e.g., Team Leadership, Strategic Planning, Project Management, Stakeholder Communication...';
-    } else if (title.includes('sales') || title.includes('marketing') || description.includes('customer') || description.includes('revenue')) {
-      detectedField = 'Sales & Marketing';
-      skillLabel = 'Sales & Marketing Skills';
-      skillPlaceholder = 'e.g., Customer Acquisition, Digital Marketing, Sales Strategy, Market Analysis...';
-    } else if (title.includes('finance') || title.includes('accounting') || description.includes('financial') || description.includes('budget')) {
-      detectedField = 'Finance';
-      skillLabel = 'Financial Skills & Competencies';
-      skillPlaceholder = 'e.g., Financial Analysis, Budgeting, Investment Strategies, Risk Management...';
-    } else if (title.includes('data') || title.includes('analyst') || description.includes('analysis') || description.includes('analytics')) {
-      detectedField = 'Data Science';
-      skillLabel = 'Data Skills & Competencies';
-      skillPlaceholder = 'e.g., Data Analysis, Machine Learning, SQL, Python, Statistical Modeling...';
-    } else if (title.includes('design') || title.includes('ui') || title.includes('ux') || description.includes('design')) {
-      detectedField = 'Design';
-      skillLabel = 'Design Skills & Competencies';
-      skillPlaceholder = 'e.g., UI/UX Design, User Research, Prototyping, Visual Design, Design Systems...';
-    }
-    
-    return {
-      skillLabel,
-      skillPlaceholder,
-      detectedField
-    };
-  };
-
-  // Get dynamic skills based on detected field
-  const getDynamicSkillsForField = (): string[] => {
-    const fieldConfig: Record<string, string[]> = {
-      'Civil Engineering': [
-        'Structural Design', 'Project Management', 'AutoCAD', 'Site Inspection',
-        'Construction Management', 'Geotechnical Engineering', 'Surveying',
-        'Building Codes', 'Infrastructure Planning', 'Cost Estimation',
-        'Risk Assessment', 'Quality Control', 'Environmental Compliance',
-        'Concrete Technology', 'Steel Design', 'Foundation Engineering'
+  // Get experience level options
+  const getExperienceLevels = () => {
+    const levels = {
+      'technical': [
+        { value: '0-2 years', label: '0-2 years (Entry Level)' },
+        { value: '2-5 years', label: '2-5 years (Mid Level)' },
+        { value: '5-8 years', label: '5-8 years (Senior)' },
+        { value: '8+ years', label: '8+ years (Expert)' }
       ],
-      'Software Development': [
-        'JavaScript', 'React', 'Node.js', 'Python', 'System Design',
-        'Database Management', 'API Development', 'Testing', 'Debugging',
-        'Performance Optimization', 'Security', 'Cloud Computing', 'DevOps',
-        'TypeScript', 'Java', 'AWS', 'Docker', 'Kubernetes'
+      'academic-viva': [
+        { value: 'Undergraduate', label: 'Undergraduate Level' },
+        { value: 'Masters', label: 'Masters Level' },
+        { value: 'PhD', label: 'PhD Candidate' },
+        { value: 'Postdoctoral', label: 'Postdoctoral/Researcher' }
       ],
-      'Healthcare & Medical': [
-        'Patient Care', 'Medical Diagnosis', 'Clinical Procedures',
-        'Healthcare Protocols', 'Medical Records', 'Treatment Planning',
-        'Emergency Response', 'Medical Ethics', 'Patient Communication',
-        'Clinical Research', 'Healthcare Technology', 'Surgical Skills',
-        'Diagnostic Imaging', 'Pharmaceutical Knowledge'
-      ],
-      'Education': [
-        'Curriculum Development', 'Classroom Management', 'Student Assessment',
-        'Educational Technology', 'Lesson Planning', 'Differentiated Instruction',
-        'Student Engagement', 'Educational Research', 'Parent Communication',
-        'Special Education', 'Educational Leadership', 'Pedagogical Methods',
-        'Learning Assessment', 'Educational Psychology'
-      ],
-      'Legal': [
-        'Legal Research', 'Case Analysis', 'Client Counseling', 'Litigation',
-        'Contract Law', 'Legal Writing', 'Dispute Resolution', 'Regulatory Compliance',
-        'Intellectual Property', 'Corporate Law', 'Legal Ethics', 'Court Procedures',
-        'Document Review', 'Legal Analysis'
-      ],
-      'Management': [
-        'Team Leadership', 'Strategic Planning', 'Project Management',
-        'Stakeholder Communication', 'Budget Management', 'Performance Management',
-        'Change Management', 'Decision Making', 'Conflict Resolution',
-        'Business Development', 'Risk Management', 'Team Building',
-        'Strategic Thinking', 'Resource Allocation'
-      ],
-      'Sales & Marketing': [
-        'Customer Acquisition', 'Digital Marketing', 'Sales Strategy',
-        'Market Analysis', 'Brand Management', 'Social Media Marketing',
-        'Customer Relationship Management', 'Sales Forecasting', 'Content Marketing',
-        'Market Research', 'Advertising', 'SEO/SEM', 'Lead Generation'
-      ],
-      'Finance': [
-        'Financial Analysis', 'Budgeting', 'Investment Strategies',
-        'Risk Management', 'Financial Modeling', 'Accounting Principles',
-        'Tax Planning', 'Audit Compliance', 'Portfolio Management',
-        'Financial Reporting', 'Cost Control', 'Valuation', 'Mergers & Acquisitions'
-      ],
-      'Data Science': [
-        'Data Analysis', 'Machine Learning', 'SQL', 'Python', 'Statistical Modeling',
-        'Data Visualization', 'Big Data', 'Data Mining', 'Predictive Analytics',
-        'Data Cleaning', 'R Programming', 'Deep Learning', 'Business Intelligence'
-      ],
-      'Design': [
-        'UI/UX Design', 'User Research', 'Prototyping', 'Visual Design',
-        'Design Systems', 'Wireframing', 'Interaction Design', 'Design Thinking',
-        'Figma', 'Adobe Creative Suite', 'User Testing', 'Information Architecture'
+      'default': [
+        { value: '0-2 years', label: '0-2 years (Beginner)' },
+        { value: '2-5 years', label: '2-5 years (Intermediate)' },
+        { value: '5-8 years', label: '5-8 years (Advanced)' },
+        { value: '8+ years', label: '8+ years (Expert)' }
       ]
     };
 
-    const detectedField = getDynamicFieldConfig().detectedField;
-    return fieldConfig[detectedField] || [
-      'Problem Solving', 'Communication', 'Teamwork', 'Leadership',
-      'Critical Thinking', 'Time Management', 'Adaptability', 'Creativity',
-      'Technical Skills', 'Analytical Thinking', 'Project Management'
-    ];
+    return levels[activeTab as keyof typeof levels] || levels.default;
   };
 
-  // Update the field when title/description changes
-  useEffect(() => {
-    if (formData.title || formData.description) {
-      const { detectedField } = getDynamicFieldConfig();
-      setDetectedField(detectedField);
+  // Get skill description based on assessment type
+  const getSkillDescription = () => {
+    switch (activeTab) {
+      case 'academic-viva':
+        return formData.subject 
+          ? `Skills for ${formData.subject}`
+          : 'Select a subject to see specific skills';
+      case 'domain-specific':
+        return formData.scenario
+          ? `Skills for ${formData.scenario} domain`
+          : 'Select a domain/scenario to see specific skills';
+      case 'technical':
+        return formData.subject
+          ? `Technical skills for ${formData.subject}`
+          : 'Select a technical field to see specific skills';
+      case 'conceptual':
+        return formData.focusArea
+          ? `Conceptual skills for ${formData.focusArea}`
+          : 'Select a focus area to see specific skills';
+      default:
+        return `${currentType.name} Skills`;
     }
-  }, [formData.title, formData.description]);
-
-  const fieldConfig = getDynamicFieldConfig();
+  };
 
   return (
-    <div 
-      className="min-h-screen text-gray-800 p-6"
-      style={{
-        backgroundImage: 'url("/ai2.jpg")',
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundAttachment: 'fixed'
-      }}
-    >
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <button 
-            onClick={() => router.push('/dashboard')}
-            className="flex items-center px-4 py-2 bg-white/80 hover:bg-white rounded-lg transition-colors backdrop-blur-sm border border-gray-300 shadow-sm"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Dashboard
-          </button>
+    <div className="relative min-h-screen overflow-hidden bg-gradient-to-b from-gray-950 via-purple-950/20 to-gray-950">
+      <GamingBackground />
+      
+      {/* Header */}
+      <nav className="relative z-10 flex w-full items-center justify-between bg-gradient-to-r from-gray-900/80 via-purple-900/50 to-gray-900/80 backdrop-blur-sm px-6 py-3 border-b border-white/10">
+        <div className="flex items-center gap-3">
+          <div className="relative h-7 w-7">
+            <div className="absolute inset-0 animate-ping rounded-full bg-blue-500/30"></div>
+            <div className="relative h-7 w-7 rounded-full bg-gradient-to-br from-blue-400 to-purple-500"></div>
+          </div>
+          <h1 className="bg-gradient-to-r from-blue-300 to-purple-300 bg-clip-text text-lg font-bold text-transparent">
+            AI ROLEPLAY
+          </h1>
+        </div>
+        <button 
+          onClick={() => router.push('/dashboard')}
+          className="transform rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 px-4 py-2 text-sm font-medium text-white shadow-lg transition-all duration-300 hover:scale-105 hover:from-blue-700 hover:to-purple-700 flex items-center gap-2"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Dashboard
+        </button>
+      </nav>
+
+      {/* Main Content */}
+      <div className="relative z-10 max-w-7xl mx-auto px-4 py-6">
+        {/* Hero Section - Made smaller */}
+        <div className="text-center mb-6">
+          <div className="mb-4 inline-block rounded-full bg-gradient-to-r from-blue-500/10 to-purple-500/10 px-3 py-1.5 border border-white/10">
+            <span className="text-xs font-semibold text-blue-300">🎮 CREATE ASSESSMENT</span>
+          </div>
           
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 bg-white/80 backdrop-blur-sm px-4 py-2 rounded-lg border border-gray-300 shadow-sm">
-              <Settings className="w-4 h-4 text-blue-600" />
-              <span className="text-sm text-gray-600">Mode:</span>
+          <h1 className="mb-4 text-2xl font-bold leading-tight text-white md:text-3xl lg:text-4xl">
+            Create Your
+            <span className="block bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+              AI Roleplay Session
+            </span>
+          </h1>
+          
+          <p className="mx-auto max-w-2xl text-sm text-gray-300 mb-4">
+            Choose an assessment type and customize it to create your perfect AI roleplay session.
+          </p>
+
+          <div className="flex justify-center">
+            <div className="flex items-center gap-2 bg-white/5 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-white/10">
+              <Brain className="w-4 h-4 text-blue-400" />
+              <span className="text-xs text-gray-300">AI Mode:</span>
               <button
                 onClick={() => setUseAI(!useAI)}
-                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                className={`px-2 py-0.5 rounded-full text-xs font-medium transition-all ${
                   useAI 
-                    ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white' 
-                    : 'bg-gray-200 text-gray-700'
+                    ? 'bg-gradient-to-r from-blue-600/80 to-cyan-600/80 text-white' 
+                    : 'bg-gray-800/80 text-gray-300 hover:bg-gray-700/80'
                 }`}
               >
-                {useAI ? 'AI Enhanced' : 'Smart Mode'}
+                {useAI ? 'Enabled' : 'Disabled'}
               </button>
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          {/* Sidebar - Tab Navigation */}
-          <div className="lg:col-span-1">
-            <div className="bg-white/80 backdrop-blur-md rounded-2xl p-6 shadow-lg border border-gray-200">
-              <h2 className="text-lg font-semibold mb-4 text-gray-800">Assessment Types</h2>
-              <div className="space-y-3">
-                {interviewTabs.map((tab) => {
-                  const IconComponent = tab.icon;
-                  return (
-                    <button
-                      key={tab.id}
-                      onClick={() => setActiveTab(tab.id)}
-                      className={`w-full flex items-center p-4 rounded-xl text-left transition-all duration-300 ${
-                        activeTab === tab.id
-                          ? 'bg-blue-50 border-2 border-blue-200 shadow-md scale-105'
-                          : 'bg-gray-50 border border-gray-200 hover:bg-gray-100 hover:scale-102'
-                      }`}
-                    >
-                      <div className={`w-12 h-12 rounded-xl ${tab.bgColor} flex items-center justify-center mr-3 shadow-lg`}>
-                        <IconComponent className="w-6 h-6 text-white" />
-                      </div>
-                      <div className="flex-1">
-                        <div className={`font-semibold ${
-                          activeTab === tab.id ? 'text-blue-800' : 'text-gray-700'
-                        }`}>
-                          {tab.name}
-                        </div>
-                        <div className="text-xs text-gray-600 mt-1 line-clamp-2">{tab.description}</div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Assessment Type Info */}
-              <div className="mt-8 pt-6 border-t border-gray-200">
-                <h3 className="text-center text-lg font-semibold mb-6 text-gray-800">
-                  Assessment Type Features
-                </h3>
-                <div className="space-y-4">
-                  <div className="flex items-start gap-3 p-3 bg-blue-50 rounded-xl border border-blue-100">
-                    <div className="p-2 bg-blue-100 rounded-lg">
-                      <BookOpen className="w-4 h-4 text-blue-600" />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-medium text-blue-800">Field-Adaptive Questions</h4>
-                      <p className="text-xs text-blue-600">
-                        Questions tailored to your specific field, level, and assessment type
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3 p-3 bg-green-50 rounded-xl border border-green-100">
-                    <div className="p-2 bg-green-100 rounded-lg">
-                      <Zap className="w-4 h-4 text-green-600" />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-medium text-green-800">Smart Difficulty Adjustment</h4>
-                      <p className="text-xs text-green-600">
-                        Questions adapt to your experience level and progress during assessment
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3 p-3 bg-purple-50 rounded-xl border border-purple-100">
-                    <div className="p-2 bg-purple-100 rounded-lg">
-                      <Brain className="w-4 h-4 text-purple-600" />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-medium text-purple-800">Real-time AI Feedback</h4>
-                      <p className="text-xs text-purple-600">
-                        Get instant feedback on responses and improvement suggestions
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
+        {/* Assessment Types Section - Grid layout to fit all */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-white">Select Assessment Type</h2>
+            <div className="text-xs text-gray-400">
+              Click to customize
             </div>
           </div>
+          
+          {/* Grid layout with 4 columns on desktop, 2 on tablet, 1 on mobile */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {assessmentTypes.map((type) => {
+              const IconComponent = type.icon;
+              const isActive = activeTab === type.id;
+              return (
+                <button
+                  key={type.id}
+                  onClick={() => handleTabSelect(type.id)}
+                  className={`group relative p-4 rounded-xl text-left transition-all duration-300 backdrop-blur-sm border ${
+                    isActive
+                      ? `${type.bgColor} ${type.glowColor} ${type.borderColor} scale-[1.02]`
+                      : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'
+                  }`}
+                >
+                  <div className="relative">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className={`w-10 h-10 rounded-lg ${
+                        isActive ? 'bg-white/20' : 'bg-white/10'
+                      } flex items-center justify-center`}>
+                        <span className="text-xl">{type.image}</span>
+                      </div>
+                      <div className={`p-1.5 rounded-md ${
+                        isActive ? 'bg-white/20' : 'bg-white/10'
+                      }`}>
+                        <IconComponent className="w-4 h-4 text-white" />
+                      </div>
+                    </div>
+                    
+                    <h3 className={`font-semibold mb-1.5 text-sm ${
+                      isActive ? 'text-white' : 'text-gray-200'
+                    }`}>
+                      {type.name}
+                    </h3>
+                    <p className="text-xs text-gray-400 line-clamp-2">
+                      {type.description}
+                    </p>
+                    
+                    <div className="mt-3 flex items-center justify-between">
+                      <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                        isActive ? 'bg-white/20 text-white' : 'bg-white/5 text-gray-400'
+                      }`}>
+                        {type.category}
+                      </span>
+                      <span className={`text-xs ${
+                        isActive ? 'text-white' : 'text-gray-400'
+                      }`}>
+                        Select →
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* Active indicator */}
+                  {isActive && (
+                    <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-white animate-pulse"></div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
-          {/* Main Content */}
-          <div className="lg:col-span-3">
-            <div className="bg-white/80 backdrop-blur-md rounded-2xl p-8 shadow-lg border border-gray-200">
-              {/* Header */}
-              <div className="text-center mb-8">
-                <div className="flex justify-center mb-4">
-                  <div className={`p-4 ${currentTab.bgColor} rounded-2xl shadow-lg`}>
-                    <currentTab.icon className="w-8 h-8 text-white" />
+        {/* Modal for Assessment Configuration */}
+        {showModal && (
+          <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
+            <div className="relative bg-gray-900/95 backdrop-blur-sm rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-white/10">
+              {/* Modal Header */}
+              <div className="sticky top-0 z-10 bg-gray-900/90 backdrop-blur-sm border-b border-white/10 p-5 rounded-t-2xl">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-12 h-12 rounded-lg ${currentType.bgColor} flex items-center justify-center`}>
+                      <span className="text-2xl">{currentType.image}</span>
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold text-white">{currentType.name}</h2>
+                      <p className="text-sm text-gray-400">{currentType.description}</p>
+                    </div>
                   </div>
+                  <button
+                    onClick={() => setShowModal(false)}
+                    className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                  >
+                    <X className="w-5 h-5 text-gray-400" />
+                  </button>
                 </div>
-                <h1 className="text-3xl font-bold mb-2 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  {currentTab.name}
-                </h1>
-                <p className="text-gray-600 max-w-2xl mx-auto text-lg">
-                  {currentTab.description}
-                </p>
-                {detectedField && (
-                  <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-blue-100 rounded-full border border-blue-200 backdrop-blur-sm">
-                    <BookOpen className="w-4 h-4 text-blue-600" />
-                    <span className="text-blue-700 font-medium">Assessment Field: {detectedField}</span>
-                  </div>
-                )}
               </div>
 
-              {/* Status Messages */}
-              {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-6 flex items-start gap-3 backdrop-blur-sm">
-                  <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="font-semibold">Error</p>
-                    <p className="text-sm">{error}</p>
+              {/* Modal Content */}
+              <div className="p-5 space-y-5">
+                {/* Status Messages */}
+                {error && (
+                  <div className="bg-gradient-to-br from-red-900/30 to-red-900/10 border border-red-700/50 text-red-200 px-4 py-3 rounded-lg flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="font-semibold">Error</p>
+                      <p className="text-sm">{error}</p>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {success && (
-                <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl mb-6 flex items-start gap-3 backdrop-blur-sm">
-                  <CheckCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="font-semibold">Success!</p>
-                    <p className="text-sm">{success}</p>
-                    <p className="text-xs text-green-600 mt-1">Redirecting to assessment start page...</p>
+                {success && (
+                  <div className="bg-gradient-to-br from-green-900/30 to-green-900/10 border border-green-700/50 text-green-200 px-4 py-3 rounded-lg flex items-start gap-3">
+                    <CheckCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="font-semibold">Success!</p>
+                      <p className="text-sm">{success}</p>
+                      <p className="text-xs text-green-300 mt-1">Redirecting to assessment...</p>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              <div className="space-y-6">
-                {/* Tab Specific Fields */}
-                {(activeTab === 'academic-viva' || activeTab === 'domain-specific' || activeTab === 'conceptual') && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {activeTab === 'academic-viva' && (
+                <div className="space-y-5">
+                  {/* Assessment Info Bar */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="p-3 bg-white/5 backdrop-blur-sm rounded-lg border border-white/10">
+                      <div className="flex items-center gap-2">
+                        <div className="p-1.5 bg-blue-500/20 rounded-md">
+                          <Target className="w-3 h-3 text-blue-400" />
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-400">Assessment Type</p>
+                          <p className="font-medium text-white text-sm">{currentType.name}</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="p-3 bg-white/5 backdrop-blur-sm rounded-lg border border-white/10">
+                      <div className="flex items-center gap-2">
+                        <div className="p-1.5 bg-purple-500/20 rounded-md">
+                          <Trophy className="w-3 h-3 text-purple-400" />
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-400">Category</p>
+                          <p className="font-medium text-white text-sm">{currentType.category}</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="p-3 bg-white/5 backdrop-blur-sm rounded-lg border border-white/10">
+                      <div className="flex items-center gap-2">
+                        <div className="p-1.5 bg-green-500/20 rounded-md">
+                          <Zap className="w-3 h-3 text-green-400" />
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-400">AI Assistance</p>
+                          <p className="font-medium text-white text-sm">{useAI ? 'Enabled' : 'Disabled'}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Subject/Scenario/Focus Area Fields */}
+                  {(activeTab === 'academic-viva' || activeTab === 'technical' || activeTab === 'domain-specific' || activeTab === 'conceptual') && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {(activeTab === 'academic-viva' || activeTab === 'technical') && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">
+                            {activeTab === 'academic-viva' ? 'Academic Subject' : 'Technical Field'} 
+                            <span className="text-red-400">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={formData.subject || ''}
+                            onChange={(e) => handleSubjectChange(e.target.value)}
+                            className="w-full px-3 py-2.5 bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-white placeholder-gray-500 text-sm"
+                            placeholder={activeTab === 'academic-viva' 
+                              ? "e.g., Computer Science, Physics, Medicine, Law" 
+                              : "e.g., Web Development, Data Science, Cybersecurity"}
+                            disabled={isGenerating}
+                          />
+                          {formErrors.subject && (
+                            <p className="mt-1 text-xs text-red-400">{formErrors.subject}</p>
+                          )}
+                        </div>
+                      )}
+                      
+                      {activeTab === 'domain-specific' && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">
+                            Domain/Industry <span className="text-red-400">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={formData.scenario || ''}
+                            onChange={(e) => handleScenarioChange(e.target.value)}
+                            className="w-full px-3 py-2.5 bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-transparent text-white placeholder-gray-500 text-sm"
+                            placeholder="e.g., Healthcare, Finance, Education, Technology"
+                            disabled={isGenerating}
+                          />
+                          {formErrors.scenario && (
+                            <p className="mt-1 text-xs text-red-400">{formErrors.scenario}</p>
+                          )}
+                        </div>
+                      )}
+
+                      {activeTab === 'conceptual' && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">
+                            Focus Area <span className="text-red-400">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={formData.focusArea || ''}
+                            onChange={(e) => handleFocusAreaChange(e.target.value)}
+                            className="w-full px-3 py-2.5 bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg focus:outline-none focus:ring-1 focus:ring-yellow-500 focus:border-transparent text-white placeholder-gray-500 text-sm"
+                            placeholder="e.g., Artificial Intelligence, Sustainable Development, Ethics"
+                            disabled={isGenerating}
+                          />
+                          {formErrors.focusArea && (
+                            <p className="mt-1 text-xs text-red-400">{formErrors.focusArea}</p>
+                          )}
+                        </div>
+                      )}
+
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Subject / Field of Study <span className="text-red-500">*</span>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">
+                          Difficulty Level <span className="text-red-400">*</span>
                         </label>
-                        <input
-                          type="text"
-                          value={formData.subject}
-                          onChange={(e) => handleInputChange('subject', e.target.value)}
-                          className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm placeholder-gray-400 transition-all duration-300"
-                          placeholder="e.g., Computer Science, Physics, Literature, Medicine"
+                        <select
+                          value={formData.difficulty}
+                          onChange={(e) => handleInputChange('difficulty', e.target.value)}
+                          className="w-full px-3 py-2.5 bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-white text-sm"
                           disabled={isGenerating}
-                        />
-                        {formErrors.subject && (
-                          <p className="mt-1 text-sm text-red-500">{formErrors.subject}</p>
-                        )}
+                        >
+                          <option value="easy" className="bg-gray-900">Easy</option>
+                          <option value="medium" className="bg-gray-900">Medium</option>
+                          <option value="hard" className="bg-gray-900">Hard</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Title */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Assessment Title <span className="text-red-400">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.title}
+                      onChange={(e) => handleTitleChange(e.target.value)}
+                      className="w-full px-3 py-2.5 bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-white placeholder-gray-500 text-sm"
+                      placeholder="e.g., Senior Software Engineer Interview, PhD Thesis Defense"
+                      disabled={isGenerating}
+                    />
+                    {formErrors.title && (
+                      <p className="mt-1 text-xs text-red-400">{formErrors.title}</p>
+                    )}
+                  </div>
+
+                  {/* Description */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Description <span className="text-red-400">*</span>
+                    </label>
+                    <textarea
+                      value={formData.description}
+                      onChange={(e) => handleDescriptionChange(e.target.value)}
+                      rows={3}
+                      className="w-full px-3 py-2.5 bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-white placeholder-gray-500 text-sm"
+                      placeholder="Describe the assessment..."
+                      disabled={isGenerating}
+                    />
+                    <div className="flex justify-between text-xs text-gray-400 mt-1">
+                      <span>{formData.description.length} characters</span>
+                      <span>Minimum 30 characters required</span>
+                    </div>
+                    {formErrors.description && (
+                      <p className="mt-1 text-xs text-red-400">{formErrors.description}</p>
+                    )}
+                  </div>
+
+                  {/* Experience Level */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Experience Level <span className="text-red-400">*</span>
+                    </label>
+                    <select
+                      value={formData.experience}
+                      onChange={(e) => handleInputChange('experience', e.target.value)}
+                      className="w-full px-3 py-2.5 bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-white text-sm"
+                      disabled={isGenerating}
+                    >
+                      {getExperienceLevels().map((level) => (
+                        <option key={level.value} value={level.value} className="bg-gray-900">
+                          {level.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Number of Questions */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Number of Questions <span className="text-red-400">*</span>
+                    </label>
+                    <select
+                      value={formData.numberOfQuestions}
+                      onChange={(e) => handleInputChange('numberOfQuestions', parseInt(e.target.value))}
+                      className="w-full px-3 py-2.5 bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-white text-sm"
+                      disabled={isGenerating}
+                    >
+                      <option value={5} className="bg-gray-900">5 Questions</option>
+                      <option value={8} className="bg-gray-900">8 Questions</option>
+                      <option value={10} className="bg-gray-900">10 Questions</option>
+                      <option value={12} className="bg-gray-900">12 Questions</option>
+                    </select>
+                  </div>
+
+                  {/* Dynamic Skills Section */}
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <label className="block text-sm font-medium text-gray-300">
+                        Relevant Skills <span className="text-red-400">*</span>
+                      </label>
+                      <span className="text-xs text-gray-400">{getSkillDescription()}</span>
+                    </div>
+                    
+                    {/* Search Skills */}
+                    <div className="mb-3 relative">
+                      <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-gray-400" />
+                      <input
+                        type="text"
+                        value={searchSkill}
+                        onChange={(e) => setSearchSkill(e.target.value)}
+                        className="w-full pl-9 pr-3 py-2 bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-white placeholder-gray-500 text-sm"
+                        placeholder="Search skills..."
+                        disabled={isGenerating}
+                      />
+                    </div>
+
+                    {/* Skills Grid - Dynamic based on assessment type */}
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4 max-h-48 overflow-y-auto p-2">
+                      {/* Simplified skills for now - you can integrate your skills databases here */}
+                      {['Critical Thinking', 'Problem Solving', 'Communication', 'Research Skills', 
+                        'Time Management', 'Adaptability', 'Teamwork', 'Leadership'].map((skill) => (
+                        <button
+                          key={skill}
+                          type="button"
+                          onClick={() => addSkill(skill)}
+                          disabled={formData.skills.includes(skill) || isGenerating}
+                          className={`p-3 text-sm rounded-xl border transition-all ${
+                            formData.skills.includes(skill)
+                              ? 'bg-blue-900/30 border-blue-500 text-blue-300'
+                              : 'bg-white/5 border-white/10 text-gray-300 hover:bg-white/10 hover:border-blue-500'
+                          }`}
+                        >
+                          {skill}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Show message if no skills available yet */}
+                    <div className="text-center py-4 text-gray-500 text-xs">
+                      <p>Add custom skills below or use the suggested skills above</p>
+                    </div>
+
+                    {/* Custom Skill Input */}
+                    <div className="flex gap-2 mb-3">
+                      <input
+                        type="text"
+                        value={newSkill}
+                        onChange={(e) => setNewSkill(e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && addCustomSkill()}
+                        className="flex-1 px-3 py-2 bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent text-white placeholder-gray-500 text-sm"
+                        placeholder="Add a custom skill..."
+                        disabled={isGenerating}
+                      />
+                      <button
+                        type="button"
+                        onClick={addCustomSkill}
+                        className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 rounded-lg transition-all duration-300 hover:scale-105 flex items-center gap-1.5 text-white text-sm"
+                        disabled={isGenerating}
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        Add
+                      </button>
+                    </div>
+                    
+                    {/* Selected Skills Display */}
+                    {formData.skills.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mb-3 p-3 bg-white/5 backdrop-blur-sm rounded-lg border border-white/10">
+                        <span className="text-xs text-gray-300 font-medium mr-1.5">Selected Skills:</span>
+                        {formData.skills.map((skill) => (
+                          <div
+                            key={skill}
+                            className="flex items-center gap-1 px-2 py-1 bg-white/10 backdrop-blur-sm border border-white/10 rounded-full text-xs"
+                          >
+                            <span className="text-gray-200">{skill}</span>
+                            <button
+                              type="button"
+                              onClick={() => removeSkill(skill)}
+                              className="text-gray-400 hover:text-red-400 transition-colors"
+                              disabled={isGenerating}
+                            >
+                              <X className="w-2.5 h-2.5" />
+                            </button>
+                          </div>
+                        ))}
                       </div>
                     )}
                     
-                    {activeTab === 'domain-specific' && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Domain / Industry <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={formData.domain}
-                          onChange={(e) => handleInputChange('domain', e.target.value)}
-                          className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm placeholder-gray-400 transition-all duration-300"
-                          placeholder="e.g., Healthcare, Finance, Education, Technology"
-                          disabled={isGenerating}
-                        />
-                        {formErrors.domain && (
-                          <p className="mt-1 text-sm text-red-500">{formErrors.domain}</p>
-                        )}
-                      </div>
+                    {formErrors.skills && (
+                      <p className="mt-1 text-xs text-red-400">{formErrors.skills}</p>
                     )}
-
-                    {activeTab === 'conceptual' && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Focus Area <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={formData.focusArea}
-                          onChange={(e) => handleInputChange('focusArea', e.target.value)}
-                          className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm placeholder-gray-400 transition-all duration-300"
-                          placeholder="e.g., Machine Learning, Philosophy, Economics"
-                          disabled={isGenerating}
-                        />
-                      </div>
-                    )}
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Difficulty Level <span className="text-red-500">*</span>
-                      </label>
-                      <select
-                        value={formData.difficulty}
-                        onChange={(e) => handleInputChange('difficulty', e.target.value)}
-                        className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm transition-all duration-300"
-                        disabled={isGenerating}
-                      >
-                        <option value="easy">Easy</option>
-                        <option value="medium">Medium</option>
-                        <option value="hard">Hard</option>
-                      </select>
-                    </div>
                   </div>
-                )}
-
-                {/* Title */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Interview Title <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.title}
-                    onChange={(e) => handleTitleChange(e.target.value)}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm placeholder-gray-400 transition-all duration-300"
-                    placeholder="e.g., Senior Civil Engineer Position, Software Developer Interview, Medical Resident Assessment..."
-                    disabled={isGenerating}
-                  />
-                  {formErrors.title && (
-                    <p className="mt-1 text-sm text-red-500">{formErrors.title}</p>
-                  )}
                 </div>
+              </div>
 
-                {/* Description */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Interview Description <span className="text-red-500">*</span>
-                    <span className="text-xs text-gray-500 ml-2">(Auto-generated based on title)</span>
-                  </label>
-                  <textarea
-                    value={formData.description}
-                    onChange={(e) => handleDescriptionChange(e.target.value)}
-                    rows={4}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm placeholder-gray-400 transition-all duration-300"
-                    placeholder="Description will be automatically generated based on your title..."
-                    disabled={isGenerating}
-                  />
-                  <div className="flex justify-between text-xs text-gray-500 mt-1">
-                    <span>{formData.description.length} characters</span>
-                    <span>Minimum 30 characters required</span>
-                  </div>
-                  {formErrors.description && (
-                    <p className="mt-1 text-sm text-red-500">{formErrors.description}</p>
-                  )}
-                </div>
-
-                {/* Organization Name - For professional tabs */}
-                {(activeTab === 'technical' || activeTab === 'behavioral' || activeTab === 'domain-specific') && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Organization / Company Name <span className="text-gray-500">(Optional)</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.organization}
-                      onChange={(e) => handleInputChange('organization', e.target.value)}
-                      className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm placeholder-gray-400 transition-all duration-300"
-                      placeholder="e.g., Google, Microsoft, Government Organization"
+              {/* Modal Footer */}
+              <div className="sticky bottom-0 z-10 bg-gray-900/90 backdrop-blur-sm border-t border-white/10 p-5 rounded-b-2xl">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setShowModal(false)}
+                      className="px-4 py-2 bg-white/5 backdrop-blur-sm hover:bg-white/10 rounded-lg transition-colors text-gray-300 text-sm border border-white/10"
                       disabled={isGenerating}
-                    />
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowModal(false);
+                        setActiveTab('technical');
+                      }}
+                      className="px-4 py-2 bg-white/5 backdrop-blur-sm hover:bg-white/10 rounded-lg transition-colors text-gray-300 text-sm border border-white/10"
+                      disabled={isGenerating}
+                    >
+                      Change Type
+                    </button>
                   </div>
-                )}
-
-                {/* Experience Level */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    {activeTab === 'academic-viva' ? 'Academic Level' : 'Experience Level'} <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={formData.experience}
-                    onChange={(e) => handleInputChange('experience', e.target.value)}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm transition-all duration-300"
+                  <button
+                    onClick={handleSubmit}
                     disabled={isGenerating}
+                    className={`px-6 py-2.5 font-semibold rounded-lg transition-all duration-300 flex items-center gap-2 text-sm ${
+                      isGenerating
+                        ? 'bg-gradient-to-r from-gray-700 to-gray-800 cursor-not-allowed text-gray-400'
+                        : `${currentType.bgColor} hover:scale-105 text-white shadow-lg`
+                    }`}
                   >
-                    {activeTab === 'academic-viva' ? (
+                    {isGenerating ? (
                       <>
-                        <option value="0-2 years">Undergraduate Level</option>
-                        <option value="2-5 years">Masters Level</option>
-                        <option value="5-8 years">PhD Candidate</option>
-                        <option value="8+ years">Postdoctoral Researcher</option>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        Creating...
                       </>
                     ) : (
                       <>
-                        <option value="0-2 years">0-2 years (Beginner)</option>
-                        <option value="2-5 years">2-5 years (Intermediate)</option>
-                        <option value="5-8 years">5-8 years (Advanced)</option>
-                        <option value="8+ years">8+ years (Expert)</option>
+                        <Play className="w-4 h-4" />
+                        Start Assessment
+                        <Sparkles className="w-4 h-4" />
                       </>
                     )}
-                  </select>
+                  </button>
                 </div>
-
-                {/* Number of Questions */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Number of Questions <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={formData.numberOfQuestions}
-                    onChange={(e) => handleInputChange('numberOfQuestions', parseInt(e.target.value))}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm transition-all duration-300"
-                    disabled={isGenerating}
-                  >
-                    <option value={5}>5 Questions</option>
-                    <option value={8}>8 Questions</option>
-                    <option value={10}>10 Questions</option>
-                    <option value={12}>12 Questions</option>
-                  </select>
-                </div>
-
-                {/* Dynamic Skills Section */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    {fieldConfig.skillLabel} <span className="text-red-500">*</span>
-                  </label>
-                  
-                  {/* Search Skills */}
-                  <div className="mb-4 relative">
-                    <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
-                    <input
-                      type="text"
-                      value={searchSkill}
-                      onChange={(e) => setSearchSkill(e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm placeholder-gray-400 transition-all duration-300"
-                      placeholder="Search skills..."
-                      disabled={isGenerating}
-                    />
-                  </div>
-
-                  {/* Dynamic Skills Grid based on detected field */}
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4 max-h-48 overflow-y-auto p-2">
-                    {getDynamicSkillsForField().filter(skill => 
-                      skill.toLowerCase().includes(searchSkill.toLowerCase())
-                    ).map((skill) => (
-                      <button
-                        key={skill}
-                        type="button"
-                        onClick={() => addSkill(skill)}
-                        disabled={formData.skills.includes(skill) || isGenerating}
-                        className={`p-3 text-sm rounded-xl border transition-all duration-300 ${
-                          formData.skills.includes(skill)
-                            ? 'bg-blue-100 border-blue-300 text-blue-800 shadow-md scale-105'
-                            : 'bg-gray-50 border-gray-300 text-gray-700 hover:bg-gray-100 hover:scale-102 hover:border-blue-300'
-                        }`}
-                      >
-                        {skill}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Custom skill input */}
-                  <div className="flex gap-2 mb-4">
-                    <input
-                      type="text"
-                      value={newSkill}
-                      onChange={(e) => setNewSkill(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && addCustomSkill()}
-                      className="flex-1 px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm placeholder-gray-400 transition-all duration-300"
-                      placeholder={fieldConfig.skillPlaceholder}
-                      disabled={isGenerating}
-                    />
-                    <button
-                      type="button"
-                      onClick={addCustomSkill}
-                      className="px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 rounded-xl transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl text-white"
-                      disabled={isGenerating}
-                    >
-                      <Plus className="w-4 h-4" />
-                      Add
-                    </button>
-                  </div>
-                  
-                  {/* Selected skills display */}
-                  {formData.skills.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mb-4 p-4 bg-blue-50 rounded-xl border border-blue-200">
-                      <span className="text-sm text-blue-700 font-medium mr-2">Selected Skills:</span>
-                      {formData.skills.map((skill) => (
-                        <div
-                          key={skill}
-                          className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-blue-100 to-purple-100 border border-blue-300 rounded-full text-sm backdrop-blur-sm"
-                        >
-                          <span className="text-blue-800">{skill}</span>
-                          <button
-                            type="button"
-                            onClick={() => removeSkill(skill)}
-                            className="text-blue-500 hover:text-blue-700 transition-colors"
-                            disabled={isGenerating}
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  
-                  {formErrors.skills && (
-                    <p className="mt-1 text-sm text-red-500">{formErrors.skills}</p>
-                  )}
-                </div>
-
-                {/* File Upload - Optional for all types */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    {activeTab === 'academic-viva' ? 'Research Paper / CV Upload' :
-                     activeTab === 'communication-test' ? 'Communication Materials (Optional)' :
-                     activeTab === 'confidence-building' ? 'Background Information (Optional)' :
-                     activeTab === 'general-practice' ? 'Background Information (Optional)' : 
-                     'Resume / CV Upload'} <span className="text-gray-500">(Optional)</span>
-                  </label>
-                  <div className="flex items-center justify-center w-full">
-                    <label
-                      htmlFor="resumeFile"
-                      className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl cursor-pointer transition-all duration-300 ${
-                        uploadedFile
-                          ? 'border-green-400 bg-green-50 shadow-md'
-                          : 'border-gray-300 bg-gray-50 hover:bg-gray-100 hover:border-blue-400'
-                      } ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    >
-                      <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                        {uploadedFile ? (
-                          <>
-                            <CheckCircle className="w-8 h-8 mb-2 text-green-500" />
-                            <p className="text-sm text-green-700 font-medium">
-                              {uploadedFile.name}
-                            </p>
-                            <p className="text-xs text-green-600">
-                              {Math.round(uploadedFile.size / 1024)}KB uploaded successfully
-                            </p>
-                          </>
-                        ) : (
-                          <>
-                            <Upload className="w-8 h-8 mb-2 text-gray-400" />
-                            <p className="mb-2 text-sm text-gray-600">
-                              <span className="font-semibold">Click to upload</span> your {activeTab === 'academic-viva' ? 'research paper or CV' : 'file'}
-                            </p>
-                            <p className="text-xs text-gray-500">PDF format only, max 5MB</p>
-                          </>
-                        )}
-                      </div>
-                      <input
-                        id="resumeFile"
-                        type="file"
-                        className="hidden"
-                        accept="application/pdf"
-                        onChange={handleFileUpload}
-                        disabled={isGenerating}
-                      />
-                    </label>
-                  </div>
-                </div>
-
-                {/* Submit Button */}
-                <button
-                  type="button"
-                  onClick={handleSubmit}
-                  disabled={isGenerating}
-                  className={`w-full flex items-center justify-center gap-3 px-6 py-4 font-semibold rounded-xl transition-all duration-300 shadow-lg ${
-                    isGenerating
-                      ? 'bg-gray-400 cursor-not-allowed text-white'
-                      : `${currentTab.bgColor} hover:scale-[1.02] active:scale-[0.98] hover:shadow-xl text-white`
-                  }`}
-                >
-                  {isGenerating ? (
-                    <>
-                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                      <span>
-                        Generating {currentTab.name} Questions...
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      {useAI ? <Brain className="h-5 w-5" /> : <Zap className="h-5 w-5" />}
-                      <span>Generate {currentTab.name}</span>
-                      <Sparkles className="h-5 w-5" />
-                    </>
-                  )}
-                </button>
               </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
