@@ -51,10 +51,10 @@ function AnimatedAI() {
       {/* Floating AI Image */}
       <motion.img
         src="/ai-hero.png"
-        alt="AI Interaction"
+        alt="AI Communication Simulation"
         initial={{ opacity: 0, scale: 0.8 }}
-        animate={{ 
-          opacity: 1, 
+        animate={{
+          opacity: 1,
           scale: 1,
           y: [0, -25, 0]
         }}
@@ -89,16 +89,15 @@ export default function Home() {
           transition={{ duration: 0.8 }}
         >
           <h1 className="text-6xl font-bold leading-tight mb-6">
-            AI Roleplay
+            AI-Roleplay
             <span className="block bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
-              Simulation Arena
+              Communication Intelligence Platform
             </span>
           </h1>
 
           <p className="text-gray-400 text-lg mb-10 max-w-xl">
-            Step into an immersive AI-powered simulation environment.
-            Practice interviews, debates, negotiations and real-world
-            conversations with intelligent adaptive AI.
+            Not just interview practice.  
+            AI-Roleplay is an immersive AI-powered simulation arena with 8 adaptive assessment modes designed to improve your confidence, communication skills, behavioral intelligence, and real-world performance.
           </p>
 
           <div className="flex gap-6">
@@ -108,15 +107,20 @@ export default function Home() {
               }
               className="px-8 py-4 bg-gradient-to-r from-purple-600 to-blue-600 rounded-xl font-bold shadow-lg hover:scale-105 transition-all"
             >
-              🚀 Start Assessment
+              🚀 Start Your First Assessment
             </button>
 
             <button
               onClick={() => router.push("/dashboard")}
               className="px-8 py-4 border border-white/20 rounded-xl hover:bg-white/10 transition-all"
             >
-              📊 Check Progress
+              📊 Track Your Progress
             </button>
+          </div>
+
+          {/* Extra Differentiation Line */}
+          <div className="mt-10 text-sm text-purple-400 tracking-wide">
+            8 Assessment Modes • Real-Time Voice Analysis • Behavioral Intelligence • Adaptive AI Simulation
           </div>
         </motion.div>
 
@@ -126,7 +130,7 @@ export default function Home() {
       </div>
 
       <div className="absolute bottom-6 w-full text-center text-xs tracking-widest text-purple-400">
-        AI SIMULATION MODE ACTIVE
+        AI PERFORMANCE SIMULATION MODE ACTIVE
       </div>
     </div>
   );
