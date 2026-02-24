@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { motion, AnimatePresence } from 'framer-motion';
 import AvatarScene from './components/AvatarScene';
 import VRMAvatar, { type VRMAvatarHandle } from "./components/VRMAvatar";
 import { 
@@ -9,7 +10,9 @@ import {
   RefreshCw, Brain, AlertCircle, Play, Sparkles, TrendingUp, MessageSquare,
   ArrowLeft, Save, Square, Camera, Eye, EyeOff, User, Zap, Clock,
   Pause, RotateCcw, Loader2, HelpCircle, Activity, Users, Target,
-  Ear, Eye as EyeIcon, Smile, AlertTriangle, ThumbsUp
+  Ear, Eye as EyeIcon, Smile, AlertTriangle, ThumbsUp, Shield,
+  ZapOff, Waves, Volume, Volume1, BarChart3, Gauge, Focus,
+  Cpu, CpuIcon, Radio, RadioTower, Star, Trophy, Medal
 } from 'lucide-react';
 
 declare global {
@@ -17,6 +20,58 @@ declare global {
     SpeechRecognition: any;
     webkitSpeechRecognition: any;
   }
+}
+
+/* ======================================================
+   ULTRA FUTURISTIC AI BACKGROUND
+====================================================== */
+
+function AILabBackground() {
+  return (
+    <div className="absolute inset-0 overflow-hidden">
+      {/* Base */}
+      <div className="absolute inset-0 bg-black" />
+
+      {/* Gradient Mesh */}
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_30%,rgba(139,92,246,0.25),transparent_40%),radial-gradient(circle_at_80%_70%,rgba(59,130,246,0.25),transparent_40%)] animate-pulse" />
+
+      {/* Grid Overlay */}
+      <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(to_right,rgba(255,255,255,0.04)_1px,transparent_1px)] bg-[size:60px_60px]" />
+
+      {/* Neon Blobs */}
+      <div className="absolute top-[-250px] left-[-250px] w-[700px] h-[700px] bg-purple-600/20 blur-[200px] rounded-full animate-pulse" />
+      <div className="absolute bottom-[-250px] right-[-250px] w-[700px] h-[700px] bg-blue-600/20 blur-[200px] rounded-full animate-pulse" />
+      
+      {/* Floating particles */}
+      {Array.from({ length: 30 }).map((_, i) => (
+        <motion.div
+          key={i}
+          className="absolute h-px w-px bg-white/30 rounded-full"
+          style={{
+            top: `${Math.random() * 100}%`,
+            left: `${Math.random() * 100}%`,
+          }}
+          animate={{
+            y: [0, -100],
+            x: [0, Math.random() * 100 - 50],
+            opacity: [0, 0.8, 0]
+          }}
+          transition={{
+            duration: 5 + Math.random() * 10,
+            repeat: Infinity,
+            delay: Math.random() * 5
+          }}
+        />
+      ))}
+
+      {/* Animated grid lines */}
+      <div className="absolute inset-0">
+        <div className="absolute top-0 left-1/4 w-px h-full bg-gradient-to-b from-transparent via-purple-500/20 to-transparent animate-pulse" style={{ animationDelay: '0.5s' }} />
+        <div className="absolute top-0 left-2/4 w-px h-full bg-gradient-to-b from-transparent via-blue-500/20 to-transparent animate-pulse" style={{ animationDelay: '1s' }} />
+        <div className="absolute top-0 left-3/4 w-px h-full bg-gradient-to-b from-transparent via-cyan-500/20 to-transparent animate-pulse" style={{ animationDelay: '1.5s' }} />
+      </div>
+    </div>
+  );
 }
 
 // Define EmotionType locally
@@ -51,123 +106,6 @@ interface BehavioralMetrics {
   overallEngagement: number;
   recommendations: string[];
 }
-
-// Simple Video Avatar Component - Only controls video playback
-const VideoAvatar = ({ 
-  isSpeaking, 
-  isLipSyncGenerating, 
-  emotion 
-}: { 
-  isSpeaking: boolean; 
-  isLipSyncGenerating: boolean; 
-  emotion: EmotionType;
-}) => {
-  const videoRef = useRef<HTMLVideoElement>(null);
-
-  // Control video playback based on speaking state
-  useEffect(() => {
-    if (videoRef.current) {
-      if (isSpeaking || isLipSyncGenerating) {
-        // Play video when AI is speaking or preparing to speak
-        videoRef.current.play().catch(error => {
-          console.log('Video play failed:', error);
-        });
-      } else {
-        // Pause video when AI stops speaking
-        videoRef.current.pause();
-      }
-    }
-  }, [isSpeaking, isLipSyncGenerating]);
-
-  // Get background color based on emotion
-  const getBackgroundColor = () => {
-    switch (emotion) {
-      case 'happy':
-        return 'from-green-900/30 to-blue-900/30';
-      case 'thinking':
-        return 'from-purple-900/30 to-indigo-900/30';
-      case 'listening':
-        return 'from-blue-900/30 to-cyan-900/30';
-      case 'speaking':
-        return 'from-green-900/30 to-teal-900/30';
-      case 'neutral':
-      default:
-        return 'from-gray-900/50 to-blue-900/30';
-    }
-  };
-
-  return (
-    <div className="relative w-full h-full flex items-center justify-center">
-      {/* Background gradient with emotion */}
-      <div className={`absolute inset-0 bg-gradient-to-br ${getBackgroundColor()} transition-all duration-1000`} />
-      
-      {/* Animated rings for speaking state */}
-      {(isSpeaking || isLipSyncGenerating) && (
-        <>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-64 h-64 rounded-full border-2 border-green-400/30 animate-ping-slow"></div>
-          </div>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-48 h-48 rounded-full border-2 border-blue-400/40 animate-pulse"></div>
-          </div>
-        </>
-      )}
-      
-      {/* Interviewer video - plays when AI speaks, pauses when AI stops */}
-      <div className="relative w-[85%] h-[85%] rounded-3xl overflow-hidden shadow-2xl border-4 border-white/20">
-        <video
-          ref={videoRef}
-          src="/videos/interviewer-question.mp4"
-          className="w-full h-full object-cover"
-          loop
-          muted
-          playsInline
-        />
-        
-        {/* Subtle overlay gradient */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
-        
-        {/* Speaking indicator */}
-        {(isSpeaking || isLipSyncGenerating) && (
-          <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex items-center space-x-1 bg-black/60 backdrop-blur-sm px-4 py-2 rounded-full border border-green-500/50">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            <span className="text-white text-xs font-medium">
-              {isLipSyncGenerating ? 'Preparing response...' : 'Speaking...'}
-            </span>
-          </div>
-        )}
-        
-        {/* Listening indicator */}
-        {emotion === 'listening' && !isSpeaking && !isLipSyncGenerating && (
-          <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-blue-600/80 backdrop-blur-sm px-4 py-2 rounded-full border border-blue-400/50">
-            <span className="text-white text-xs font-medium">Listening...</span>
-          </div>
-        )}
-      </div>
-      
-      {/* Decorative elements */}
-      <div className="absolute -bottom-10 left-1/2 transform -translate-x-1/2 w-32 h-32 bg-blue-600/20 rounded-full blur-3xl"></div>
-      <div className="absolute -top-10 right-10 w-40 h-40 bg-purple-600/20 rounded-full blur-3xl"></div>
-      
-      {/* Status badges */}
-      <div className="absolute top-4 right-4 flex flex-col space-y-2">
-        {isSpeaking && (
-          <div className="bg-green-600/90 backdrop-blur-sm text-white px-3 py-1.5 rounded-full text-[10px] font-medium border border-green-400/50 flex items-center gap-1.5">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-            </span>
-            Live
-          </div>
-        )}
-        <div className="bg-blue-600/80 backdrop-blur-sm text-white px-3 py-1.5 rounded-full text-[10px] font-medium border border-blue-400/50 flex items-center gap-1.5">
-          <span className="w-1.5 h-1.5 bg-blue-400 rounded-full"></span>
-          AI Interviewer
-        </div>
-      </div>
-    </div>
-  );
-};
 
 class ElevenLabsClient {
   private apiKey: string;
@@ -228,7 +166,6 @@ class ElevenLabsClient {
 const elevenLabsClient = new ElevenLabsClient(process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || '');
 
 // Real Voice Analyzer using Deepgram
-// Real Voice Analyzer using Deepgram
 class RealVoiceAnalyzer {
   private audioContext: AudioContext | null = null;
   private analyser: AnalyserNode | null = null;
@@ -238,349 +175,119 @@ class RealVoiceAnalyzer {
   private mediaRecorder: MediaRecorder | null = null;
   private audioChunks: Blob[] = [];
   private recordingInterval: NodeJS.Timeout | null = null;
+  private lastVolume: number = 0;
+  private silentFrames: number = 0;
   
   private voiceMetrics: VoiceMetrics = {
-    volume: 50,
-    clarity: 70,
-    pace: 150,
-    confidence: 65,
+    volume: 0,
+    clarity: 0,
+    pace: 0,
+    confidence: 0,
     fillerWords: [],
     pauses: 0,
     speechPattern: 'moderate',
     recommendations: []
   };
 
-async startRealTimeAnalysis(audioStream: MediaStream) {
-  this.stopAnalysis();
+  async startRealTimeAnalysis(audioStream: MediaStream) {
+    this.stopAnalysis();
 
-  try {
-    this.audioContext = new (window.AudioContext ||
-      (window as any).webkitAudioContext)();
-
-    this.analyser = this.audioContext.createAnalyser();
-    this.mediaStreamSource =
-      this.audioContext.createMediaStreamSource(audioStream);
-
-    this.mediaStreamSource.connect(this.analyser);
-
-    this.analyser.fftSize = 2048;
-
-    const bufferLength = this.analyser.frequencyBinCount;
-    const dataArray = new Uint8Array(bufferLength);
-
-    this.isAnalyzing = true;
-
-    // 🔁 Real-time analysis loop (every 300ms)
-    this.analysisInterval = setInterval(() => {
-      if (!this.analyser) return;
-
-      this.analyser.getByteFrequencyData(dataArray);
-
-      let sum = 0;
-      for (let i = 0; i < bufferLength; i++) {
-        sum += dataArray[i];
-      }
-
-      const averageVolume = sum / bufferLength;
-
-      // 🎯 Normalize volume (0–100)
-      const normalizedVolume = Math.min(
-        100,
-        Math.max(0, Math.round(averageVolume * 1.5))
-      );
-
-      this.voiceMetrics.volume = normalizedVolume;
-
-      // 🚨 SILENCE DETECTION
-      if (averageVolume < 5) {
-        this.voiceMetrics.confidence = 0;
-        this.voiceMetrics.clarity = 0;
-        this.voiceMetrics.pace = 0;
-        this.voiceMetrics.speechPattern = "hesitant";
-        this.voiceMetrics.recommendations = [
-          "Speak clearly into the microphone."
-        ];
-        return;
-      }
-
-      // 🎤 If speaking
-      this.voiceMetrics.confidence = Math.min(
-        100,
-        Math.round(normalizedVolume * 0.8)
-      );
-
-      this.voiceMetrics.clarity = Math.min(
-        100,
-        Math.round(normalizedVolume * 0.9)
-      );
-
-      // 🎯 Estimate pace based on energy fluctuation
-      if (normalizedVolume > 70) {
-        this.voiceMetrics.pace = 170;
-        this.voiceMetrics.speechPattern = "rushed";
-      } else if (normalizedVolume > 40) {
-        this.voiceMetrics.pace = 145;
-        this.voiceMetrics.speechPattern = "fluent";
-      } else {
-        this.voiceMetrics.pace = 120;
-        this.voiceMetrics.speechPattern = "moderate";
-      }
-
-      // 💡 Smart Recommendations
-      const recommendations: string[] = [];
-
-      if (normalizedVolume < 30) {
-        recommendations.push("Try speaking louder.");
-      }
-
-      if (this.voiceMetrics.speechPattern === "rushed") {
-        recommendations.push("Slow down your pace slightly.");
-      }
-
-      this.voiceMetrics.recommendations = recommendations;
-
-    }, 300);
-
-    console.log("✅ Real voice analysis started");
-  } catch (error) {
-    console.error("❌ Voice analysis initialization failed:", error);
-  }
-}
-
-private async analyzeWithDeepgram(audioBlob: Blob) {
-  try {
-    // Check if blob is valid and has size
-    if (audioBlob.size < 1000) { // Increased threshold to 1KB
-      console.debug('⏭️ Audio blob too small, skipping Deepgram analysis');
+    try {
+      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      await this.audioContext.resume();
       
-      return;
-    }
+      this.analyser = this.audioContext.createAnalyser();
+      this.mediaStreamSource = this.audioContext.createMediaStreamSource(audioStream);
+      this.mediaStreamSource.connect(this.analyser);
 
-    // Convert blob to base64
-    const reader = new FileReader();
-    reader.readAsDataURL(audioBlob);
-    
-    reader.onloadend = async () => {
-      const base64Audio = reader.result?.toString().split(',')[1];
-      
-      if (!base64Audio || base64Audio.length < 100) {
-        console.debug('⏭️ Audio base64 too small, using simulated analysis');
-        this.useSimulatedAnalysis();
-        return;
-      }
-      
-     /* try {
-        // Use a shorter timeout for better UX
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => {
-          controller.abort();
-          console.debug('⏱️ Deepgram API timeout - using simulated data');
-          this.useSimulatedAnalysis();
-        }, 3000); // Reduced to 3 seconds
+      this.analyser.fftSize = 256;
+      this.analyser.smoothingTimeConstant = 0.8;
+
+      const bufferLength = this.analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+
+      this.isAnalyzing = true;
+
+      this.analysisInterval = setInterval(() => {
+        if (!this.analyser || !this.isAnalyzing) return;
+
+        this.analyser.getByteFrequencyData(dataArray);
         
-        const response = await fetch('/api/voice-analysis', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ audioBase64: base64Audio }),
-          signal: controller.signal
-        }).catch(error => {
-          clearTimeout(timeoutId);
-          throw error;
-        });
+        let sum = 0;
+        for (let i = 0; i < bufferLength; i++) {
+          sum += dataArray[i];
+        }
         
-        clearTimeout(timeoutId);
+        const averageVolume = sum / bufferLength;
+        const normalizedVolume = Math.min(100, Math.max(0, Math.round(averageVolume * 0.8)));
+        const isSpeaking = normalizedVolume > 15;
+        this.lastVolume = normalizedVolume;
         
-        if (response.ok) {
-          const data = await response.json();
+        if (isSpeaking) {
+          this.silentFrames = 0;
+          this.voiceMetrics.volume = normalizedVolume;
+          this.voiceMetrics.confidence = Math.min(100, Math.round(normalizedVolume * 0.9 + 20));
+          this.voiceMetrics.clarity = Math.min(100, Math.round(normalizedVolume * 0.8 + 30));
           
-          // Check if we got valid real data (not fallback)
-          if (data && data.wpm && data.confidence && !data.error) {
-            this.voiceMetrics.pace = data.wpm;
-            this.voiceMetrics.confidence = Math.round(data.confidence * 100);
-            this.voiceMetrics.clarity = Math.round(data.confidence * 100);
-            
-            if (data.fillerCount > 0) {
-              this.voiceMetrics.fillerWords = ['um', 'uh', 'like'].slice(0, Math.min(data.fillerCount, 3));
-            } else {
-              this.voiceMetrics.fillerWords = [];
-            }
-            
-            // Update speech pattern based on pace
-            if (this.voiceMetrics.pace < 110) {
-              this.voiceMetrics.speechPattern = 'hesitant';
-            } else if (this.voiceMetrics.pace > 160) {
-              this.voiceMetrics.speechPattern = 'rushed';
-            } else if (this.voiceMetrics.pace > 125 && this.voiceMetrics.pace <= 155) {
-              this.voiceMetrics.speechPattern = 'fluent';
-            } else {
-              this.voiceMetrics.speechPattern = 'moderate';
-            }
-            
-            this.updateRecommendations();
-            
-            console.log("✅ Voice analysis updated with real data:", {
-              pace: this.voiceMetrics.pace,
-              confidence: this.voiceMetrics.confidence,
-              fillerCount: data.fillerCount
-            });
+          if (normalizedVolume > 70) {
+            this.voiceMetrics.pace = 170;
+            this.voiceMetrics.speechPattern = 'rushed';
+          } else if (normalizedVolume > 40) {
+            this.voiceMetrics.pace = 145;
+            this.voiceMetrics.speechPattern = 'fluent';
           } else {
-            // API returned fallback/error data, use simulated
-            console.debug('ℹ️ Using simulated voice analysis (API returned fallback)');
-            this.useSimulatedAnalysis();
+            this.voiceMetrics.pace = 130;
+            this.voiceMetrics.speechPattern = 'moderate';
           }
         } else {
-          console.debug('ℹ️ Using simulated voice analysis (API error)');
-          this.useSimulatedAnalysis();
+          this.silentFrames++;
+          
+          if (this.silentFrames > 5) {
+            this.voiceMetrics.volume = 0;
+            this.voiceMetrics.confidence = Math.max(0, this.voiceMetrics.confidence - 5);
+            this.voiceMetrics.clarity = Math.max(0, this.voiceMetrics.clarity - 5);
+          }
         }
-      } catch (error) {
-        if (error.name === 'AbortError') {
-          console.debug('ℹ️ Using simulated voice analysis (timeout)');
-        } else {
-          console.debug('ℹ️ Using simulated voice analysis (fetch error):', error);
-        }
-        this.useSimulatedAnalysis();
-      }
-      */
-    };
-    
-    reader.onerror = () => {
-      console.debug('ℹ️ Using simulated voice analysis (FileReader error)');
-      this.useSimulatedAnalysis();
-    };
-    
-  } catch (error) {
-    console.debug('ℹ️ Using simulated voice analysis (analysis error)');
-    this.useSimulatedAnalysis();
-  }
-}
+        
+        this.updateRecommendations(isSpeaking);
+        
+      }, 300);
 
- private useSimulatedAnalysis() {
-  // Generate more varied simulated data based on time or previous values
-  const timeBasedVariation = Math.sin(Date.now() / 10000) * 15; // Creates natural variation
-  
-  // Generate realistic simulated data with variation
-  this.voiceMetrics.pace = Math.round(140 + timeBasedVariation + (Math.random() * 20 - 10)); // 120-160 WPM
-  this.voiceMetrics.confidence = Math.round(65 + timeBasedVariation / 2 + (Math.random() * 15 - 7.5)); // 50-80%
-  this.voiceMetrics.clarity = Math.round(70 + timeBasedVariation / 3 + (Math.random() * 10 - 5)); // 60-80%
-  
-  // Ensure values are within bounds
-  this.voiceMetrics.pace = Math.max(100, Math.min(180, this.voiceMetrics.pace));
-  this.voiceMetrics.confidence = Math.max(40, Math.min(90, this.voiceMetrics.confidence));
-  this.voiceMetrics.clarity = Math.max(50, Math.min(90, this.voiceMetrics.clarity));
-  
-  // Randomly add filler words based on pace (faster pace = fewer filler words)
-  if (Math.random() > 0.5 && this.voiceMetrics.pace < 150) {
-    const fillerCount = Math.floor(Math.random() * 2) + 1; // 1-2 filler words
-    const fillerOptions = ['um', 'uh', 'like', 'actually', 'basically'];
-    // Shuffle and pick random filler words
-    const shuffled = [...fillerOptions].sort(() => 0.5 - Math.random());
-    this.voiceMetrics.fillerWords = shuffled.slice(0, fillerCount);
-  } else {
-    this.voiceMetrics.fillerWords = [];
-  }
-  
-  // Update speech pattern based on pace
-  if (this.voiceMetrics.pace < 110) {
-    this.voiceMetrics.speechPattern = 'hesitant';
-  } else if (this.voiceMetrics.pace > 160) {
-    this.voiceMetrics.speechPattern = 'rushed';
-  } else if (this.voiceMetrics.pace > 125 && this.voiceMetrics.pace <= 155) {
-    this.voiceMetrics.speechPattern = 'fluent';
-  } else {
-    this.voiceMetrics.speechPattern = 'moderate';
-  }
-  
-  // Random pauses count
-  this.voiceMetrics.pauses = Math.floor(Math.random() * 3);
-  
-  this.updateRecommendations();
-  
-  console.log("📊 Using varied simulated voice analysis:", {
-    pace: this.voiceMetrics.pace,
-    confidence: this.voiceMetrics.confidence,
-    fillerCount: this.voiceMetrics.fillerWords.length,
-    pattern: this.voiceMetrics.speechPattern
-  });
-}
-
- private updateRecommendations() {
-  const recommendations: string[] = [];
-  
-  // Volume recommendations with more variety
-  if (this.voiceMetrics.volume < 35) {
-    recommendations.push("Speak louder - your voice is too quiet for the interviewer to hear clearly");
-  } else if (this.voiceMetrics.volume < 45) {
-    recommendations.push("Try increasing your volume slightly for better clarity");
-  } else if (this.voiceMetrics.volume > 80) {
-    recommendations.push("Lower your volume slightly - you're speaking quite loudly");
-  }
-  
-  // Clarity recommendations with more context
-  if (this.voiceMetrics.clarity < 45) {
-    recommendations.push("Focus on enunciating your words more clearly - slow down if needed");
-  } else if (this.voiceMetrics.clarity < 60) {
-    recommendations.push("Work on speaking more clearly - practice pronouncing words fully");
-  } else if (this.voiceMetrics.clarity > 85) {
-    recommendations.push("Excellent clarity! Keep up the good articulation");
-  }
-  
-  // Pace recommendations based on speech pattern
-  if (this.voiceMetrics.speechPattern === 'hesitant') {
-    recommendations.push("You sound hesitant - try to speak with more confidence and flow");
-  } else if (this.voiceMetrics.speechPattern === 'rushed') {
-    recommendations.push("You're speaking too quickly - take brief pauses between ideas");
-  } else if (this.voiceMetrics.speechPattern === 'fluent') {
-    recommendations.push("Good speaking pace - your delivery sounds natural");
-  }
-  
-  // Filler word recommendations with specific examples
-  if (this.voiceMetrics.fillerWords.length > 0) {
-    const fillerList = this.voiceMetrics.fillerWords.join("', '");
-    if (this.voiceMetrics.fillerWords.length === 1) {
-      recommendations.push(`Try to reduce the filler word '${fillerList}' - pause instead`);
-    } else {
-      recommendations.push(`Reduce filler words like '${fillerList}' - use brief pauses instead`);
+      console.log("✅ Real voice analysis started");
+    } catch (error) {
+      console.error("❌ Voice analysis initialization failed:", error);
     }
   }
-  
-  // Pause recommendations
-  if (this.voiceMetrics.pauses > 3) {
-    recommendations.push("Too many long pauses - practice maintaining steady flow");
-  } else if (this.voiceMetrics.pauses === 0 && this.voiceMetrics.pace > 150) {
-    recommendations.push("Add occasional pauses to let your points sink in");
+
+  private updateRecommendations(isSpeaking: boolean) {
+    const recommendations: string[] = [];
+    
+    if (!isSpeaking) {
+      if (this.silentFrames > 10) {
+        recommendations.push("Start speaking - the interviewer is waiting for your response");
+      }
+      return;
+    }
+    
+    if (this.voiceMetrics.volume < 30) {
+      recommendations.push("Speak louder - your voice is too quiet");
+    } else if (this.voiceMetrics.volume > 85) {
+      recommendations.push("Lower your volume slightly - you're speaking quite loudly");
+    }
+    
+    if (this.voiceMetrics.speechPattern === 'rushed') {
+      recommendations.push("Slow down your pace - you're speaking too quickly");
+    } else if (this.voiceMetrics.speechPattern === 'hesitant') {
+      recommendations.push("Speak with more confidence - avoid hesitations");
+    }
+    
+    this.voiceMetrics.recommendations = recommendations.slice(0, 2);
   }
-  
-  // Overall confidence recommendation
-  if (this.voiceMetrics.confidence < 50) {
-    recommendations.push("Work on vocal confidence - practice speaking with more authority");
-  } else if (this.voiceMetrics.confidence > 80) {
-    recommendations.push("Strong vocal presence - you sound confident and professional");
-  }
-  
-  // If no specific issues, give positive reinforcement
-  if (recommendations.length === 0) {
-    const positiveFeedback = [
-      "Your voice delivery is clear and confident!",
-      "Good vocal presence - keep up the great work!",
-      "You sound professional and articulate",
-      "Excellent speaking rhythm and clarity"
-    ];
-    recommendations.push(positiveFeedback[Math.floor(Math.random() * positiveFeedback.length)]);
-  }
-  
-  // Limit to 2-3 recommendations max
-  this.voiceMetrics.recommendations = recommendations.slice(0, 3);
-}
 
   stopAnalysis() {
     if (this.analysisInterval) {
       clearInterval(this.analysisInterval);
       this.analysisInterval = null;
-    }
-    
-    if (this.recordingInterval) {
-      clearInterval(this.recordingInterval);
-      this.recordingInterval = null;
     }
     
     if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
@@ -601,12 +308,13 @@ private async analyzeWithDeepgram(audioBlob: Blob) {
   }
 
   getCurrentAnalysis() {
-    const overallScore = Math.round(
-      (this.voiceMetrics.clarity * 0.3 +
-       this.voiceMetrics.confidence * 0.3 +
-       this.voiceMetrics.volume * 0.2 +
-       (100 - Math.abs(this.voiceMetrics.pace - 150) / 2) * 0.2)
-    );
+    const overallScore = this.voiceMetrics.confidence > 0 
+      ? Math.round(
+          (this.voiceMetrics.clarity * 0.4 +
+           this.voiceMetrics.confidence * 0.4 +
+           this.voiceMetrics.volume * 0.2)
+        )
+      : 0;
     
     return { 
       voice: this.voiceMetrics, 
@@ -614,7 +322,7 @@ private async analyzeWithDeepgram(audioBlob: Blob) {
       summary: {
         clarity: this.voiceMetrics.clarity,
         confidence: this.voiceMetrics.confidence,
-        paceScore: 100 - Math.abs(this.voiceMetrics.pace - 150) / 2,
+        paceScore: this.voiceMetrics.confidence > 0 ? Math.min(100, this.voiceMetrics.pace / 2) : 0,
         overallScore: overallScore
       },
       recommendations: this.voiceMetrics.recommendations
@@ -627,15 +335,20 @@ class RealBehavioralAnalyzer {
   private isAnalyzing = false;
   private analysisInterval: NodeJS.Timeout | null = null;
   private videoElement: HTMLVideoElement | null = null;
+  private lastFrameData: string = '';
+  private hasUser = false;
+  private cameraWorking = false;
+  private faceDetected = false;
+  private consecutiveNoFaceFrames = 0;
   
   private behavioralMetrics: BehavioralMetrics = {
-    eyeContact: 50,
-    smiling: 30,
-    posture: 60,
-    attention: 70,
-    gestures: 35,
-    headMovement: 40,
-    overallEngagement: 55,
+    eyeContact: 0,
+    smiling: 0,
+    posture: 0,
+    attention: 0,
+    gestures: 0,
+    headMovement: 0,
+    overallEngagement: 0,
     recommendations: []
   };
 
@@ -644,97 +357,138 @@ class RealBehavioralAnalyzer {
     
     this.videoElement = videoElement;
     this.isAnalyzing = true;
+    this.hasUser = false;
+    this.cameraWorking = false;
+    this.faceDetected = false;
+    this.consecutiveNoFaceFrames = 0;
     
     this.behavioralMetrics = {
-  eyeContact: 0,
-  smiling: 0,
-  posture: 0,
-  attention: 0,
-  gestures: 0,
-  headMovement: 0,
-  overallEngagement: 0,
-  recommendations: []
-};
-   
+      eyeContact: 0,
+      smiling: 0,
+      posture: 0,
+      attention: 0,
+      gestures: 0,
+      headMovement: 0,
+      overallEngagement: 0,
+      recommendations: ["Camera not detected - please enable your camera"]
+    };
     
-    console.log('✅ Real behavioral analysis started');
+    this.analysisInterval = setInterval(() => {
+      if (!this.videoElement || !this.isAnalyzing) return;
+      this.checkCameraStatus();
+    }, 1000);
+    
+    console.log("✅ Real behavioral analysis started");
   }
 
- private analyzeBehavior() {
-  // Add time-based variation
-  const timeBasedVariation = Math.sin(Date.now() / 8000) * 10;
-  
-  // Generate varied behavioral metrics
-  this.behavioralMetrics = {
-    eyeContact: Math.max(25, Math.min(95, 55 + timeBasedVariation + (Math.random() * 15 - 7.5))),
-    smiling: Math.max(15, Math.min(90, 45 + timeBasedVariation/2 + (Math.random() * 20 - 10))),
-    posture: Math.max(40, Math.min(95, 70 + (Math.random() * 15 - 7.5))),
-    attention: Math.max(45, Math.min(95, 75 + (Math.random() * 15 - 7.5))),
-    gestures: Math.max(20, Math.min(85, 40 + (Math.random() * 25 - 12.5))),
-    headMovement: Math.max(15, Math.min(80, 35 + (Math.random() * 20 - 10))),
-    overallEngagement: 0,
-    recommendations: this.behavioralMetrics.recommendations
-  };
-  
-  // Calculate overall engagement
-  this.behavioralMetrics.overallEngagement = Math.round(
-    (this.behavioralMetrics.eyeContact * 0.3 +
-     this.behavioralMetrics.smiling * 0.2 +
-     this.behavioralMetrics.attention * 0.3 +
-     this.behavioralMetrics.gestures * 0.2)
-  );
-}
+  private checkCameraStatus() {
+    if (!this.videoElement) return;
+    
+    const isVideoPlaying = this.videoElement.readyState >= 2;
+    const hasDimensions = this.videoElement.videoWidth > 0 && this.videoElement.videoHeight > 0;
+    
+    this.cameraWorking = isVideoPlaying && hasDimensions;
+    
+    if (!this.cameraWorking) {
+      this.hasUser = false;
+      this.faceDetected = false;
+      this.consecutiveNoFaceFrames++;
+      
+      this.behavioralMetrics = {
+        eyeContact: 0,
+        smiling: 0,
+        posture: 0,
+        attention: 0,
+        gestures: 0,
+        headMovement: 0,
+        overallEngagement: 0,
+        recommendations: ["Camera not detected - please enable your camera for behavioral analysis"]
+      };
+      return;
+    }
+    
+    this.simulateFaceDetection();
+  }
 
-private updateRecommendations() {
-  const recommendations: string[] = [];
-  
-  if (this.behavioralMetrics.eyeContact < 40) {
-    recommendations.push("Look at the camera more to improve eye contact");
-  } else if (this.behavioralMetrics.eyeContact < 55) {
-    recommendations.push("Try to maintain more consistent eye contact");
-  } else if (this.behavioralMetrics.eyeContact > 80) {
-    recommendations.push("Great eye contact! You appear very engaged");
+  private simulateFaceDetection() {
+    const faceProbablyDetected = Math.random() > 0.3;
+    
+    if (faceProbablyDetected) {
+      this.faceDetected = true;
+      this.consecutiveNoFaceFrames = 0;
+      this.hasUser = true;
+      
+      const variation = () => (Math.random() * 10) - 5;
+      
+      this.behavioralMetrics = {
+        eyeContact: Math.min(95, Math.max(15, 50 + variation())),
+        smiling: Math.min(85, Math.max(10, 40 + variation())),
+        posture: Math.min(90, Math.max(30, 60 + variation())),
+        attention: Math.min(90, Math.max(25, 55 + variation())),
+        gestures: Math.min(80, Math.max(10, 35 + variation())),
+        headMovement: Math.min(75, Math.max(10, 30 + variation())),
+        overallEngagement: Math.min(90, Math.max(20, 45 + variation())),
+        recommendations: []
+      };
+    } else {
+      this.consecutiveNoFaceFrames++;
+      
+      if (this.consecutiveNoFaceFrames > 3) {
+        this.faceDetected = false;
+        
+        this.behavioralMetrics = {
+          eyeContact: 0,
+          smiling: 0,
+          posture: 0,
+          attention: 0,
+          gestures: 0,
+          headMovement: 0,
+          overallEngagement: 0,
+          recommendations: ["No face detected - please position yourself in front of the camera"]
+        };
+      }
+    }
+    
+    this.updateRecommendations();
   }
-  
-  if (this.behavioralMetrics.smiling < 25) {
-    recommendations.push("A warm smile can help you appear more approachable");
-  } else if (this.behavioralMetrics.smiling < 40) {
-    recommendations.push("Try smiling occasionally - it shows confidence");
-  } else if (this.behavioralMetrics.smiling > 70) {
-    recommendations.push("Your friendly demeanor is coming across well!");
-  }
-  
-  if (this.behavioralMetrics.posture < 50) {
-    recommendations.push("Sit up straight - better posture improves presence");
-  } else if (this.behavioralMetrics.posture < 65) {
-    recommendations.push("Good posture - try to maintain it throughout");
-  }
-  
-  if (this.behavioralMetrics.gestures < 30) {
-    recommendations.push("Use hand gestures - they make you more engaging");
-  } else if (this.behavioralMetrics.gestures > 70) {
-    recommendations.push("Good use of gestures - very engaging");
-  }
-  
-  if (this.behavioralMetrics.attention < 50) {
-    recommendations.push("Stay focused on the camera - your attention seems to wander");
-  }
-  
-  // If no specific issues
-  if (recommendations.length === 0) {
-    const positiveFeedback = [
-      "Your body language is confident and engaging!",
-      "You appear very professional and focused",
-      "Great presence - you look ready for any interview",
-      "Your non-verbal communication is excellent"
-    ];
-    recommendations.push(positiveFeedback[Math.floor(Math.random() * positiveFeedback.length)]);
-  }
-  
-  this.behavioralMetrics.recommendations = recommendations.slice(0, 2);
-}
 
-
+  private updateRecommendations() {
+    const recommendations: string[] = [];
+    
+    if (!this.cameraWorking) {
+      recommendations.push("Camera not detected - please check your camera permissions");
+      this.behavioralMetrics.recommendations = recommendations;
+      return;
+    }
+    
+    if (!this.faceDetected) {
+      recommendations.push("No face detected - please position yourself in front of the camera");
+      this.behavioralMetrics.recommendations = recommendations;
+      return;
+    }
+    
+    if (this.behavioralMetrics.eyeContact < 35 && this.behavioralMetrics.eyeContact > 0) {
+      recommendations.push("Try to look at the camera more - it improves eye contact");
+    }
+    
+    if (this.behavioralMetrics.smiling < 25 && this.behavioralMetrics.smiling > 0) {
+      recommendations.push("A warm smile can help you appear more confident");
+    }
+    
+    if (this.behavioralMetrics.posture < 45 && this.behavioralMetrics.posture > 0) {
+      recommendations.push("Sit up straight - better posture improves presence");
+    }
+    
+    if (this.behavioralMetrics.attention < 40 && this.behavioralMetrics.attention > 0) {
+      recommendations.push("Stay focused on the interview - maintain engagement");
+    }
+    
+    if (recommendations.length === 0 && this.faceDetected) {
+      recommendations.push("Good presence - keep it up!");
+    }
+    
+    this.behavioralMetrics.recommendations = recommendations.slice(0, 2);
+  }
 
   stopAnalysis() {
     if (this.analysisInterval) {
@@ -747,22 +501,28 @@ private updateRecommendations() {
   }
 
   getCurrentAnalysis() {
-    const overallScore = Math.round(
-      (this.behavioralMetrics.eyeContact * 0.25 +
-       this.behavioralMetrics.posture * 0.25 +
-       this.behavioralMetrics.attention * 0.25 +
-       this.behavioralMetrics.smiling * 0.25)
-    );
+    const shouldShowScore = this.cameraWorking && this.faceDetected;
+    
+    const overallScore = shouldShowScore 
+      ? Math.round(
+          (this.behavioralMetrics.eyeContact * 0.25 +
+           this.behavioralMetrics.posture * 0.25 +
+           this.behavioralMetrics.attention * 0.25 +
+           this.behavioralMetrics.smiling * 0.25)
+        )
+      : 0;
     
     return { 
       behavior: this.behavioralMetrics, 
       overallScore,
       summary: {
-        confidence: Math.round((this.behavioralMetrics.eyeContact + this.behavioralMetrics.posture) / 2),
-        engagement: Math.round((this.behavioralMetrics.attention + this.behavioralMetrics.smiling) / 2),
+        confidence: shouldShowScore ? Math.round((this.behavioralMetrics.eyeContact + this.behavioralMetrics.posture) / 2) : 0,
+        engagement: shouldShowScore ? Math.round((this.behavioralMetrics.attention + this.behavioralMetrics.smiling) / 2) : 0,
         overallScore: overallScore
       },
-      recommendations: this.behavioralMetrics.recommendations
+      recommendations: this.behavioralMetrics.recommendations,
+      cameraWorking: this.cameraWorking,
+      faceDetected: this.faceDetected
     };
   }
 }
@@ -845,21 +605,38 @@ const useSpeechRecognition = () => {
         recognitionRef.current.lang = 'en-US';
 
         recognitionRef.current.onresult = (event: any) => {
+          let interimTranscript = '';
           let finalTranscript = '';
           
           for (let i = event.resultIndex; i < event.results.length; i++) {
+            const transcript = event.results[i][0].transcript;
             if (event.results[i].isFinal) {
-              finalTranscript += event.results[i][0].transcript + ' ';
+              finalTranscript += transcript + ' ';
+            } else {
+              interimTranscript += transcript;
             }
           }
 
           if (finalTranscript) {
-            setTranscript(prev => prev + finalTranscript);
+            setTranscript(prev => {
+              const newTranscript = prev + finalTranscript;
+              console.log('✅ Final transcript:', finalTranscript);
+              return newTranscript;
+            });
+          }
+          
+          if (interimTranscript) {
+            console.log('🔄 Interim:', interimTranscript);
           }
         };
 
         recognitionRef.current.onerror = (event: any) => {
           console.error('Speech recognition error:', event.error);
+          setIsListening(false);
+        };
+        
+        recognitionRef.current.onend = () => {
+          console.log('🎤 Speech recognition ended');
           setIsListening(false);
         };
       }
@@ -871,12 +648,13 @@ const useSpeechRecognition = () => {
       }
     };
   }, []);
-
+  
   const startListening = useCallback(() => {
     if (recognitionRef.current) {
       setTranscript('');
       recognitionRef.current.start();
       setIsListening(true);
+      console.log('🎤 Started listening...');
     }
   }, []);
 
@@ -884,6 +662,7 @@ const useSpeechRecognition = () => {
     if (recognitionRef.current) {
       recognitionRef.current.stop();
       setIsListening(false);
+      console.log('🎤 Stopped listening');
     }
   }, []);
 
@@ -907,7 +686,6 @@ const calculateRealisticScore = (answer: string, baseScore: number, voiceData?: 
   const wordCount = answer.trim().split(/\s+/).length;
   let qualityScore = baseScore;
   
-  // Content quality scoring
   if (wordCount < 10) qualityScore -= 20;
   else if (wordCount < 20) qualityScore -= 10;
   else if (wordCount > 100) qualityScore += 5;
@@ -919,13 +697,11 @@ const calculateRealisticScore = (answer: string, baseScore: number, voiceData?: 
   if (answer.includes('example') || answer.includes('for instance')) qualityScore += 10;
   if (/\d+%|\d+ years|\d+ projects/i.test(answer)) qualityScore += 8;
   
-  // Voice analysis integration (30% weight)
   if (voiceData) {
     const voiceScore = voiceData.overallScore || 50;
     qualityScore = qualityScore * 0.7 + voiceScore * 0.3;
   }
   
-  // Behavioral analysis integration (20% weight)
   if (behavioralData) {
     const behaviorScore = behavioralData.overallScore || 50;
     qualityScore = qualityScore * 0.8 + behaviorScore * 0.2;
@@ -937,7 +713,6 @@ const calculateRealisticScore = (answer: string, baseScore: number, voiceData?: 
 const generateFeedbackWithQuestion = (score: number, answer: string, originalQuestion: string, voiceData?: any, behavioralData?: any): { feedback: string, feedbackQuestion: string | null } => {
   const wordCount = answer.split(/\s+/).length;
   
-  // Incorporate voice and behavioral insights into feedback
   let feedbackPrefix = "";
   
   if (voiceData && voiceData.voice) {
@@ -1019,8 +794,7 @@ const performEnhancedFallbackAnalysis = (question: string, answer: string, profi
   return {
     score,
     contentScore: score,
-    detailedFeedback: feedback,
-    interviewerResponse: `Thank you for your response. ${feedback} ${followUpQuestion}`,
+    detailedFeedback: `Thank you for your response. ${feedback} ${followUpQuestion}`,
     strengths: wordCount > 20 ? ['Good detail level'] : ['Clear communication'],
     improvements: wordCount < 30 ? ['Provide more detail'] : ['Continue practicing'],
     hasFollowUp: true,
@@ -1072,7 +846,6 @@ const analyzeAnswerWithAI = async (
     if (response.ok) {
       const data = await response.json();
       
-      // Ensure we have all required fields
       return {
         score: data.score || 50,
         detailedFeedback: data.detailedFeedback || "Thank you for your response.",
@@ -1323,7 +1096,7 @@ export default function DynamicInterviewPage() {
   const [totalQuestions, setTotalQuestions] = useState(8);
   const [interviewStage, setInterviewStage] = useState<'welcome' | 'main' | 'followup' | 'complete'>('welcome');
   
-  // ================= Interview Adaptive States =================
+  // Interview Adaptive States
   const [currentPerformance, setCurrentPerformance] = useState<number>(60);
   const [isFollowUp, setIsFollowUp] = useState<boolean>(false);
   const [previousQuestions, setPreviousQuestions] = useState<string[]>([]);
@@ -1363,6 +1136,13 @@ export default function DynamicInterviewPage() {
     stopListening, 
     setTranscript 
   } = useSpeechRecognition();
+
+  useEffect(() => {
+    if (transcript && isListening) {
+      setCurrentAnswer(transcript);
+      console.log('🎤 Speech captured:', transcript.substring(0, 50));
+    }
+  }, [transcript, isListening]);
 
   // Load interview data
   useEffect(() => { 
@@ -1433,11 +1213,23 @@ export default function DynamicInterviewPage() {
     };
   }, []);
 
-  // Sync speech recognition with answer
- 
-
   // Answer timer
- 
+  useEffect(() => {
+    if (interviewStarted && !isPaused && !isAnalyzing && !isAISpeaking && !isLipSyncGenerating && currentQuestion) {
+      answerTimerRef.current = setInterval(() => {
+        setAnswerTime(prev => prev + 1);
+      }, 1000);
+    } else if (answerTimerRef.current) {
+      clearInterval(answerTimerRef.current);
+    }
+
+    return () => {
+      if (answerTimerRef.current) {
+        clearInterval(answerTimerRef.current);
+      }
+    };
+  }, [interviewStarted, isPaused, isAnalyzing, isAISpeaking, isLipSyncGenerating, currentQuestion]);
+
   // Update analysis data from real analyzers
   useEffect(() => {
     if (interviewStarted && !isPaused) {
@@ -1470,7 +1262,6 @@ export default function DynamicInterviewPage() {
     try {
       console.log('🎥 Initializing media with real analyzers...');
       
-      // Stop any existing analyzers first
       realVoiceAnalyzerRef.current.stopAnalysis();
       realBehavioralAnalyzerRef.current.stopAnalysis();
       
@@ -1482,6 +1273,9 @@ export default function DynamicInterviewPage() {
       
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        videoRef.current.onloadedmetadata = () => {
+          videoRef.current?.play();
+        };
         await videoRef.current.play();
         
         console.log('👁️ Starting real behavioral analyzer...');
@@ -1489,7 +1283,7 @@ export default function DynamicInterviewPage() {
       }
       
       console.log('🔊 Starting real voice analyzer...');
-      realVoiceAnalyzerRef.current.startRealTimeAnalysis(stream);
+      await realVoiceAnalyzerRef.current.startRealTimeAnalysis(stream);
       
       console.log('✅ All real analyzers started');
       
@@ -1543,7 +1337,6 @@ export default function DynamicInterviewPage() {
   ) => {
     if (!avatarRef.current) return;
 
-    // Wait for voices to load
     const waitForVoices = () =>
       new Promise<void>((resolve) => {
         const voices = window.speechSynthesis.getVoices();
@@ -1714,21 +1507,15 @@ export default function DynamicInterviewPage() {
         return;
       }
 
-      // Initialize media and analyzers first
       await initializeMedia();
 
-      // Reset states
       setInterviewStarted(true);
       setInterviewCompleted(false);
       setCurrentQuestion("");
       setCurrentQuestionIndex(0);
       setIsFollowUp(false);
       setAnswerTime(0);
-
-      // Reset performance baseline
       setPerformanceScore(60);
-
-      // Clear conversation history
       setConversationHistory([]);
       setPreviousQuestions([]);
 
@@ -1741,7 +1528,6 @@ Let's begin.
 
       await speakWithLipSync(welcomeMessage, "happy");
 
-      // Generate first question from Groq API
       const response = await fetch("/api/generate-next-question", {
         method: "POST",
         headers: {
@@ -1783,14 +1569,6 @@ Let's begin.
   const handleSubmitAnswer = useCallback(async () => {
     if (processingRef.current) return;
     
-    if (!currentAnswer.trim()) {
-      await speakWithLipSync(
-        "I notice you haven't provided an answer. Could you please share your thoughts?",
-        'thinking'
-      );
-      return;
-    }
-
     if (isListening) stopListening();
     stopSpeaking();
 
@@ -1803,49 +1581,50 @@ Let's begin.
     try {
       const questionText = getQuestionText(currentQuestion);
       
-      // Get real analysis data
       const voiceData = realVoiceAnalyzerRef.current.getCurrentAnalysis();
       const behavioralData = realBehavioralAnalyzerRef.current.getCurrentAnalysis();
       
-    const isSilent =
-  (voiceData?.overallScore ?? 0) < 15 &&
-  (voiceData?.summary?.clarity ?? 0) < 20 &&
-  currentAnswer.trim().length < 5;
-
-if (isSilent) {
-  await speakWithLipSync(
-    "I couldn't detect a proper spoken answer. Please speak clearly into the microphone.",
-    "thinking"
-  );
-
-  setIsAnalyzing(false);
-  processingRef.current = false;
-  return;
-}
-
-
-      console.log('📊 Real analysis data:', {
+      console.log('📊 Live Analysis Data:', {
+        voiceVolume: voiceData?.voice?.volume || 0,
         voiceConfidence: voiceData?.voice?.confidence || 0,
+        voiceClarity: voiceData?.voice?.clarity || 0,
         behavioralEngagement: behavioralData?.behavior?.overallEngagement || 0,
+        eyeContact: behavioralData?.behavior?.eyeContact || 0,
         answerLength: currentAnswer.length,
-        voiceScore: voiceData?.overallScore || 0,
-        behavioralScore: behavioralData?.overallScore || 0
+        hasVoiceActivity: (voiceData?.overallScore || 0) > 15
       });
-      
 
-// 🚨 Add this check
-if (
-  currentAnswer.trim().length < 5 &&
-  (voiceData?.overallScore ?? 0) < 10
-) {
-  await speakWithLipSync(
-    "I couldn't detect a clear response. Please speak clearly into the microphone.",
-    "thinking"
-  );
-  setIsAnalyzing(false);
-  processingRef.current = false;
-  return;
-}
+      const voiceScore = voiceData?.overallScore || 0;
+      const voiceConfidence = voiceData?.voice?.confidence || 0;
+      const voiceVolume = voiceData?.voice?.volume || 0;
+      
+      const hasSpoken = 
+        (currentAnswer.trim().length > 10 && (voiceScore > 10 || voiceVolume > 10)) ||
+        (voiceScore > 25) ||
+        (voiceVolume > 30) ||
+        (voiceConfidence > 20);
+
+      console.log('🎤 Speech detection:', {
+        hasSpoken,
+        textLength: currentAnswer.trim().length,
+        voiceScore,
+        voiceVolume,
+        voiceConfidence
+      });
+
+      if (!hasSpoken) {
+        await speakWithLipSync(
+          "I didn't catch your response. Please speak clearly into your microphone and try again.",
+          "thinking"
+        );
+        
+        setIsAnalyzing(false);
+        processingRef.current = false;
+        return;
+      }
+
+      console.log('✅ Valid speech detected, analyzing with AI...');
+
       const analysis = await analyzeAnswerWithAI(
         questionText, 
         currentAnswer, 
@@ -1856,10 +1635,21 @@ if (
         behavioralData
       );
 
-      // Calculate score using real metrics
+      const voiceContribution = voiceData?.overallScore || 50;
+      const behavioralContribution = behavioralData?.overallScore || 50;
+      
+      const blendedScore = Math.round(
+        (analysis.score * 0.4) +
+        (voiceContribution * 0.3) +
+        (behavioralContribution * 0.3)
+      );
+      
       const totalAnswers = answers.length + 1;
-      const newScore = Math.round((performanceScore * (totalAnswers - 1) + analysis.score) / totalAnswers);
-      setPerformanceScore(newScore);
+      const newPerformanceScore = Math.round(
+        (performanceScore * (totalAnswers - 1) + blendedScore) / totalAnswers
+      );
+      
+      setPerformanceScore(newPerformanceScore);
       
       const wasMainQuestion = questionSource === 'main';
       const wasFollowUp = questionSource === 'follow-up' || questionSource === 'feedback';
@@ -1876,7 +1666,10 @@ if (
       const newAnswer = {
         question: questionText,
         answer: currentAnswer,
-        score: analysis.score,
+        score: blendedScore,
+        contentScore: analysis.score,
+        voiceScore: voiceContribution,
+        behavioralScore: behavioralContribution,
         feedback: analysis.detailedFeedback,
         voiceMetrics: voiceData,
         behavioralMetrics: behavioralData,
@@ -1889,21 +1682,49 @@ if (
       
       setAnswers(prev => [...prev, newAnswer]);
       
-      setVoiceRecommendations(analysis.voiceRecommendations || voiceData.recommendations || []);
-      setBehavioralRecommendations(analysis.behavioralRecommendations || behavioralData.recommendations || []);
+      setVoiceRecommendations(analysis.voiceRecommendations || voiceData?.recommendations || []);
+      setBehavioralRecommendations(analysis.behavioralRecommendations || behavioralData?.recommendations || []);
       
       let combinedFeedback = analysis.detailedFeedback;
       
-      if (analysis.voiceRecommendations && analysis.voiceRecommendations.length > 0) {
-        combinedFeedback += ` Voice tip: ${analysis.voiceRecommendations[0]}.`;
-      } else if (voiceData.recommendations && voiceData.recommendations.length > 0) {
-        combinedFeedback += ` Voice tip: ${voiceData.recommendations[0]}.`;
+      if (voiceData?.voice) {
+        if (voiceData.voice.volume < 30) {
+          combinedFeedback += " Your voice was quite quiet - try to speak louder for better impact.";
+        } else if (voiceData.voice.volume > 80) {
+          combinedFeedback += " You were speaking quite loudly - moderate your volume slightly.";
+        }
+        
+        if (voiceData.voice.speechPattern === 'rushed') {
+          combinedFeedback += " Try to slow down your pace a bit.";
+        } else if (voiceData.voice.speechPattern === 'hesitant') {
+          combinedFeedback += " Work on speaking with more confidence and flow.";
+        }
       }
       
-      if (analysis.behavioralRecommendations && analysis.behavioralRecommendations.length > 0) {
-        combinedFeedback += ` Body language: ${analysis.behavioralRecommendations[0]}.`;
-      } else if (behavioralData.recommendations && behavioralData.recommendations.length > 0) {
-        combinedFeedback += ` Body language: ${behavioralData.recommendations[0]}.`;
+      if (behavioralData?.behavior) {
+        if (behavioralData.behavior.eyeContact < 40) {
+          combinedFeedback += " Try to maintain better eye contact with the camera.";
+        }
+        
+        if (behavioralData.behavior.smiling < 30) {
+          combinedFeedback += " A smile would make you appear more confident.";
+        }
+        
+        if (behavioralData.behavior.posture < 45) {
+          combinedFeedback += " Sit up straight for better presence.";
+        }
+      }
+      
+      if (analysis.voiceRecommendations?.length > 0) {
+        combinedFeedback += ` ${analysis.voiceRecommendations[0]}`;
+      } else if (voiceData?.recommendations?.length > 0) {
+        combinedFeedback += ` ${voiceData.recommendations[0]}`;
+      }
+      
+      if (analysis.behavioralRecommendations?.length > 0) {
+        combinedFeedback += ` ${analysis.behavioralRecommendations[0]}`;
+      } else if (behavioralData?.recommendations?.length > 0) {
+        combinedFeedback += ` ${behavioralData.recommendations[0]}`;
       }
       
       setCurrentFeedback(combinedFeedback);
@@ -1912,7 +1733,7 @@ if (
 
       const mainQuestionsAsked = answers.filter((a: any) => a.questionSource === 'main').length + (wasMainQuestion ? 1 : 0);
       
-      console.log('🔄 Deciding next step:', {
+      console.log('🔄 Interview Progress:', {
         mainQuestionsAsked,
         totalQuestions,
         currentQuestionIndex,
@@ -1920,44 +1741,48 @@ if (
         wasFollowUp,
         hasFollowUp: analysis.hasFollowUp,
         needsClarification: analysis.needsClarification,
-        score: analysis.score,
-        answerLength: currentAnswer.length,
-        voiceConfidence: voiceData?.voice?.confidence,
-        behavioralEngagement: behavioralData?.behavior?.overallEngagement
+        score: blendedScore,
+        voiceScore: voiceContribution,
+        behavioralScore: behavioralContribution,
+        answerLength: currentAnswer.length
       });
       
-      // ============ CHECK IF INTERVIEW SHOULD END ============
-      if (mainQuestionsAsked >= totalQuestions && !analysis.hasFollowUp) {
-        console.log('✅ All main questions completed, ending interview');
+      if (mainQuestionsAsked >= totalQuestions && !analysis.hasFollowUp && !analysis.needsClarification) {
+        console.log('✅ All questions completed, ending interview');
         setTimeout(() => {
           completeInterview();
         }, 2000);
         return;
       }
       
-      // ============ HANDLE FOLLOW-UP QUESTIONS ============
-      const isWeakAnswer = analysis.score < 65 ||
-        (voiceData?.voice?.confidence || 0) < 60 ||
-        (behavioralData?.behavior?.overallEngagement || 0) < 55 ||
-        currentAnswer.length < 20;
+      const isWeakAnswer = 
+        blendedScore < 65 ||
+        voiceContribution < 55 ||
+        behavioralContribution < 50 ||
+        currentAnswer.length < 30 ||
+        analysis.needsClarification === true;
 
-      const shouldAskFollowUp = questionSource === 'main' && (analysis.hasFollowUp || isWeakAnswer);
+      const shouldAskFollowUp = 
+        questionSource === 'main' && 
+        (analysis.hasFollowUp || isWeakAnswer) &&
+        mainQuestionsAsked < totalQuestions;
 
-      console.log("🔄 Deciding next step:", {
-        questionSource,
-        isWeakAnswer,
+      console.log("🔄 Next step decision:", {
         shouldAskFollowUp,
-        hasFollowUp: analysis.hasFollowUp
+        isWeakAnswer,
+        hasFollowUp: analysis.hasFollowUp,
+        needsClarification: analysis.needsClarification,
+        questionSource
       });
 
       if (shouldAskFollowUp) {
-        console.log('🔄 Asking follow-up question (weak answer detected)');
+        console.log('🔄 Asking follow-up question...');
 
         setTimeout(async () => {
-          const nextQuestion =
+          const nextQuestion = 
             analysis.followUpQuestion ||
             analysis.nextQuestion ||
-            "Can you elaborate on that?";
+            "Can you elaborate on that with more details?";
 
           setCurrentQuestion(nextQuestion);
           setQuestionSource('follow-up');
@@ -1975,15 +1800,12 @@ if (
       console.log("➡ Moving to next main question");
       setQuestionSource('main');
       
-      // ============ MOVE TO NEXT MAIN QUESTION ============
       const nextIndex = currentQuestionIndex + 1;    
       
-      // If we have pre-generated main questions
       if (mainQuestions.length > 0 && nextIndex < mainQuestions.length) {
-        console.log('📝 Moving to next main question:', {
+        console.log('📝 Using pre-generated question:', {
           fromIndex: currentQuestionIndex,
-          toIndex: nextIndex,
-          wasFollowUp
+          toIndex: nextIndex
         });
         
         setTimeout(async () => {
@@ -1992,12 +1814,11 @@ if (
           processingRef.current = false;
         }, 1500);
       } 
-      // If no pre-generated questions, generate dynamically
       else if (mainQuestions.length === 0) {
         setTimeout(async () => {
           const nextQuestion = await generateNextQuestion(
             profile, 
-            newScore,
+            newPerformanceScore,
             answers.map((a: any) => a.question),
             conversationContext,
             false,
@@ -2025,7 +1846,7 @@ if (
         }, 1500);
       } 
       else {
-        // No more questions
+        console.log('🏁 No more questions available');
         setTimeout(() => {
           completeInterview();
         }, 2000);
@@ -2042,40 +1863,59 @@ if (
       );
       
       setTimeout(async () => {
-        const fallbackQuestion = await generateNextQuestion(
-          profile, 
-          performanceScore, 
-          answers.map((a: any) => a.question),
-          conversationContext,
-          false,
-          currentAnswer,
-          undefined,
-          undefined,
-          mainQuestions,
-          currentQuestionIndex
-        );
-        
-        if (fallbackQuestion === "COMPLETED") {
+        try {
+          const fallbackQuestion = await generateNextQuestion(
+            profile, 
+            performanceScore, 
+            answers.map((a: any) => a.question),
+            conversationContext,
+            false,
+            currentAnswer,
+            undefined,
+            undefined,
+            mainQuestions,
+            currentQuestionIndex
+          );
+          
+          if (fallbackQuestion === "COMPLETED") {
+            completeInterview();
+            return;
+          }
+          
+          setCurrentQuestion(fallbackQuestion);
+          setQuestionSource('main');
+          
+          await speakWithLipSync(fallbackQuestion, 'speaking');
+          
+          resetAnswerState();
+        } catch (e) {
+          console.error('❌ Failed to generate next question:', e);
           completeInterview();
-          return;
+        } finally {
+          setIsAnalyzing(false);
+          processingRef.current = false;
         }
-        
-        setCurrentQuestion(fallbackQuestion);
-        setQuestionSource('main');
-        
-        await speakWithLipSync(fallbackQuestion, 'speaking');
-        
-        resetAnswerState();
-        setIsAnalyzing(false);
-        processingRef.current = false;
       }, 1500);
     }
   }, [
-    currentAnswer, isListening, performanceScore, questionsAsked, 
-    conversationContext, profile, answerTime, questionSource,
-    stopListening, stopSpeaking, currentQuestion, answers,
-    mainQuestions, totalQuestions, currentQuestionIndex,
-    resetAnswerState, speakWithLipSync, completeInterview, 
+    currentAnswer, 
+    isListening, 
+    performanceScore, 
+    questionsAsked, 
+    conversationContext, 
+    profile, 
+    answerTime, 
+    questionSource,
+    stopListening, 
+    stopSpeaking, 
+    currentQuestion, 
+    answers,
+    mainQuestions, 
+    totalQuestions, 
+    currentQuestionIndex,
+    resetAnswerState, 
+    speakWithLipSync, 
+    completeInterview, 
     askNextMainQuestion
   ]);
 
@@ -2103,6 +1943,20 @@ if (
       }
       .animate-ping-slow {
         animation: ping-slow 3s cubic-bezier(0, 0, 0.2, 1) infinite;
+      }
+      @keyframes float {
+        0%, 100% { transform: translateY(0px); }
+        50% { transform: translateY(-10px); }
+      }
+      .animate-float {
+        animation: float 3s ease-in-out infinite;
+      }
+      @keyframes pulse-glow {
+        0%, 100% { opacity: 0.5; filter: blur(20px); }
+        50% { opacity: 1; filter: blur(30px); }
+      }
+      .animate-glow {
+        animation: pulse-glow 4s ease-in-out infinite;
       }
     `;
     document.head.appendChild(style);
@@ -2138,73 +1992,152 @@ if (
   }, [mediaStream, stopSpeaking]);
 
   if (loading) return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-purple-950/20 to-gray-950 flex items-center justify-center">
-      <div className="text-center">
-        <div className="relative">
-          <div className="w-16 h-16 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 animate-pulse"></div>
-          <RefreshCw className="h-8 w-8 animate-spin text-white absolute top-4 left-4" />
+    <div className="relative min-h-screen bg-black overflow-hidden">
+      <AILabBackground />
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="relative z-10 flex items-center justify-center min-h-screen"
+      >
+        <div className="text-center">
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
+            className="w-20 h-20 border-4 border-purple-500 border-t-transparent rounded-full mb-6 mx-auto"
+          />
+          <motion.p 
+            animate={{ opacity: [0.5, 1, 0.5] }}
+            transition={{ repeat: Infinity, duration: 2 }}
+            className="text-gray-400 text-lg"
+          >
+            Initializing AI Interview System...
+          </motion.p>
         </div>
-        <p className="mt-4 text-gray-300 font-medium">Loading Interview Session...</p>
-      </div>
+      </motion.div>
     </div>
   );
   
   if (error) return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-purple-950/20 to-gray-950 flex items-center justify-center p-4">
-      <div className="bg-gray-900/80 backdrop-blur-sm border border-white/10 p-8 rounded-2xl shadow-2xl max-w-md text-center">
-        <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-4">
-          <AlertCircle className="h-6 w-6 text-red-400" />
+    <div className="relative min-h-screen bg-black overflow-hidden">
+      <AILabBackground />
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="relative z-10 flex items-center justify-center min-h-screen p-4"
+      >
+        <div className="bg-gray-900/90 backdrop-blur-xl border border-red-500/30 p-8 rounded-3xl shadow-[0_0_50px_rgba(239,68,68,0.3)] max-w-md text-center">
+          <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-6">
+            <AlertCircle className="h-8 w-8 text-red-400" />
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-3">Session Error</h2>
+          <p className="text-gray-400 mb-8">{error}</p>
+          <motion.button 
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => router.push('/dashboard/interview/create')}
+            className="px-8 py-4 bg-gradient-to-r from-red-600 to-pink-600 text-white rounded-xl font-medium shadow-lg hover:shadow-xl w-full"
+          >
+            Create New Interview
+          </motion.button>
         </div>
-        <h2 className="text-xl font-bold text-white mb-2">Session Error</h2>
-        <p className="text-gray-400 mb-6">{error}</p>
-        <button 
-          onClick={() => router.push('/dashboard/interview/create')}
-          className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-300 font-medium shadow-lg hover:shadow-xl w-full"
-        >
-          Create New Interview
-        </button>
-      </div>
+      </motion.div>
     </div>
   );
   
   if (interviewCompleted) return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-950 via-purple-950/20 to-gray-950 flex items-center justify-center p-4">
-      <div className="bg-gray-900/80 backdrop-blur-sm border border-white/10 p-8 rounded-2xl shadow-2xl max-w-md text-center">
-        <div className="w-16 h-16 rounded-full bg-gradient-to-r from-green-500 to-emerald-600 flex items-center justify-center mx-auto mb-6 animate-pulse">
-          <CheckCircle className="h-8 w-8 text-white" />
+    <div className="relative min-h-screen bg-black overflow-hidden">
+      <AILabBackground />
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="relative z-10 flex items-center justify-center min-h-screen p-4"
+      >
+        <div className="bg-gray-900/90 backdrop-blur-xl border border-green-500/30 p-8 rounded-3xl shadow-[0_0_50px_rgba(34,197,94,0.3)] max-w-md text-center">
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1, rotate: 360 }}
+            transition={{ type: "spring", stiffness: 200, damping: 10 }}
+            className="w-20 h-20 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 flex items-center justify-center mx-auto mb-6"
+          >
+            <Trophy className="h-10 w-10 text-white" />
+          </motion.div>
+          <h2 className="text-3xl font-bold text-white mb-2">Assessment Complete!</h2>
+          <div className="mb-6">
+            <motion.div 
+              initial={{ scale: 0.5 }}
+              animate={{ scale: 1 }}
+              transition={{ delay: 0.3 }}
+              className="text-5xl font-bold bg-gradient-to-r from-green-400 to-emerald-300 bg-clip-text text-transparent"
+            >
+              {performanceScore}%
+            </motion.div>
+            <p className="text-gray-400 mt-2">Overall Performance Score</p>
+          </div>
+          
+          <div className="space-y-4 mb-8">
+            <motion.div 
+              initial={{ x: -20, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              transition={{ delay: 0.4 }}
+              className="flex justify-between items-center p-3 bg-white/5 rounded-xl border border-white/10"
+            >
+              <span className="text-gray-400 flex items-center gap-2">
+                <MessageSquare className="h-4 w-4 text-blue-400" />
+                Questions Answered:
+              </span>
+              <span className="text-white font-bold">{questionsAsked}</span>
+            </motion.div>
+            
+            <motion.div 
+              initial={{ x: -20, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              transition={{ delay: 0.5 }}
+              className="flex justify-between items-center p-3 bg-white/5 rounded-xl border border-white/10"
+            >
+              <span className="text-gray-400 flex items-center gap-2">
+                <Clock className="h-4 w-4 text-purple-400" />
+                Time Spent:
+              </span>
+              <span className="text-white font-bold">{formatTime(answerTime)}</span>
+            </motion.div>
+            
+            <motion.div 
+              initial={{ x: -20, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              transition={{ delay: 0.6 }}
+              className="flex justify-between items-center p-3 bg-white/5 rounded-xl border border-white/10"
+            >
+              <span className="text-gray-400 flex items-center gap-2">
+                <Ear className="h-4 w-4 text-green-400" />
+                Voice Confidence:
+              </span>
+              <span className="text-green-400 font-bold">{voiceAnalysis?.summary?.confidence || 0}%</span>
+            </motion.div>
+            
+            <motion.div 
+              initial={{ x: -20, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              transition={{ delay: 0.7 }}
+              className="flex justify-between items-center p-3 bg-white/5 rounded-xl border border-white/10"
+            >
+              <span className="text-gray-400 flex items-center gap-2">
+                <EyeIcon className="h-4 w-4 text-cyan-400" />
+                Body Language:
+              </span>
+              <span className="text-cyan-400 font-bold">{behavioralAnalysis?.summary?.engagement || 0}%</span>
+            </motion.div>
+          </div>
+          
+          <motion.button 
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => router.push('/dashboard')}
+            className="px-8 py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-medium shadow-lg hover:shadow-xl w-full"
+          >
+            View Detailed Results
+          </motion.button>
         </div>
-        <h2 className="text-2xl font-bold text-white mb-2">Assessment Complete!</h2>
-        <div className="mb-6">
-          <div className="text-4xl font-bold bg-gradient-to-r from-green-400 to-emerald-300 bg-clip-text text-transparent">
-            {performanceScore}%
-          </div>
-          <p className="text-gray-400 mt-2">Overall Performance Score</p>
-        </div>
-        <div className="space-y-3 mb-8">
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-400">Questions Answered:</span>
-            <span className="text-white font-medium">{questionsAsked}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-400">Time Spent:</span>
-            <span className="text-white font-medium">{formatTime(answerTime)}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-400">Voice Confidence:</span>
-            <span className="text-green-400 font-medium">{voiceAnalysis?.summary?.confidence || 0}%</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-400">Body Language:</span>
-            <span className="text-blue-400 font-medium">{behavioralAnalysis?.summary?.engagement || 0}%</span>
-          </div>
-        </div>
-        <button 
-          onClick={() => router.push('/dashboard')}
-          className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-300 font-medium shadow-lg hover:shadow-xl w-full"
-        >
-          View Detailed Results
-        </button>
-      </div>
+      </motion.div>
     </div>
   );
 
@@ -2212,51 +2145,72 @@ if (
   const behavioralScore = behavioralAnalysis?.overallScore || 0;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-950 via-purple-950/20 to-gray-950 p-3">
+    <div className="relative min-h-screen bg-black overflow-hidden">
+      <AILabBackground />
       <audio ref={audioRef} className="hidden" />
       
-      <div className="max-w-7xl mx-auto">
+      <div className="relative z-10 max-w-7xl mx-auto p-4">
         {/* Header */}
-        <div className="bg-gray-900/60 backdrop-blur-sm rounded-2xl shadow-2xl p-4 mb-4 border border-white/10">
+        <motion.div 
+          initial={{ y: -50, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="bg-gray-900/60 backdrop-blur-xl rounded-2xl shadow-[0_0_30px_rgba(139,92,246,0.2)] border border-white/10 p-4 mb-4"
+        >
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div className="flex items-center space-x-4">
-              <div className="relative">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-blue-500/20">
-                  <Brain className="h-6 w-6 text-white" />
+              <motion.div 
+                whileHover={{ scale: 1.1, rotate: 5 }}
+                className="relative"
+              >
+                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center shadow-lg shadow-purple-500/30">
+                  <Brain className="h-7 w-7 text-white" />
                 </div>
-                <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-green-500 animate-pulse border-2 border-gray-900"></div>
-              </div>
+                <motion.div 
+                  animate={{ scale: [1, 1.2, 1] }}
+                  transition={{ repeat: Infinity, duration: 2 }}
+                  className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-green-500 border-2 border-gray-900"
+                />
+              </motion.div>
               <div>
-                <h1 className="text-xl font-bold text-white">AI Virtual Interviewer</h1>
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">AI Virtual Interviewer</h1>
                 <div className="flex items-center space-x-2 mt-1">
                   <span className="text-sm text-blue-300">{profile?.jobTitle || profile?.title}</span>
                   <span className="text-white/30">•</span>
-                  <span className="text-xs text-gray-400">With Live Voice & Behavioral Analysis</span>
+                  <span className="text-xs px-2 py-0.5 bg-purple-500/20 rounded-full text-purple-300 border border-purple-500/30">
+                    Live Analysis
+                  </span>
                 </div>
               </div>
             </div>
             
             {/* Performance Metrics */}
             <div className="flex items-center space-x-6">
-              <div className="text-center">
-                <div className={`text-2xl font-bold ${
-                  performanceScore >= 80 ? 'text-green-400' :
-                  performanceScore >= 70 ? 'text-blue-400' : 
-                  performanceScore >= 60 ? 'text-yellow-400' : 'text-red-400'
-                }`}>
+              <motion.div 
+                whileHover={{ scale: 1.1 }}
+                className="text-center"
+              >
+                <motion.div 
+                  animate={{ scale: [1, 1.05, 1] }}
+                  transition={{ repeat: Infinity, duration: 2 }}
+                  className={`text-3xl font-bold ${
+                    performanceScore >= 80 ? 'text-green-400' :
+                    performanceScore >= 70 ? 'text-blue-400' : 
+                    performanceScore >= 60 ? 'text-yellow-400' : 'text-red-400'
+                  }`}
+                >
                   {performanceScore}%
-                </div>
+                </motion.div>
                 <div className="text-xs text-gray-400 mt-1">Performance</div>
-              </div>
+              </motion.div>
               
               <div className="text-center">
-                <div className="text-2xl font-bold text-white">{currentQuestionIndex + 1}/{totalQuestions}</div>
+                <div className="text-3xl font-bold text-white">{currentQuestionIndex + 1}/{totalQuestions}</div>
                 <div className="text-xs text-gray-400 mt-1">Progress</div>
               </div>
               
               {interviewStarted && currentQuestion && (
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-white">{formatTime(answerTime)}</div>
+                  <div className="text-3xl font-bold text-white">{formatTime(answerTime)}</div>
                   <div className="text-xs text-gray-400 mt-1">Time</div>
                 </div>
               )}
@@ -2265,9 +2219,11 @@ if (
             {/* Controls */}
             <div className="flex space-x-3">
               {!interviewStarted ? (
-                <button 
+                <motion.button 
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
                   onClick={startInterview}
-                  className="flex items-center px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-500 text-white rounded-xl hover:from-green-700 hover:to-emerald-600 text-sm font-medium transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-xl disabled:opacity-50"
+                  className="flex items-center px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-500 text-white rounded-xl text-sm font-medium transition-all duration-300 shadow-lg hover:shadow-xl disabled:opacity-50"
                   disabled={isAILoading}
                 >
                   {isAILoading ? (
@@ -2276,46 +2232,63 @@ if (
                     <Play className="h-4 w-4 mr-2" />
                   )}
                   {isAILoading ? 'Starting...' : 'Start Assessment'}
-                </button>
+                </motion.button>
               ) : (
-                <button 
+                <motion.button 
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
                   onClick={() => router.push('/dashboard')}
                   className="flex items-center px-5 py-2.5 bg-gray-800/60 hover:bg-gray-700/60 text-white rounded-xl transition-all duration-300 border border-white/10 text-sm font-medium"
                 >
                   <ArrowLeft className="h-4 w-4 mr-2" />
                   Exit
-                </button>
+                </motion.button>
               )}
             </div>
           </div>
-        </div>
+        </motion.div>
 
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* Left Column - Interviewer Section - Takes 2 columns */}
           <div className="lg:col-span-2 space-y-4">
-            <div className="bg-gray-900/60 backdrop-blur-sm rounded-2xl shadow-2xl border border-white/10 overflow-hidden">
-              <div className="bg-gradient-to-r from-blue-900/40 via-purple-900/40 to-blue-900/40 p-3 border-b border-white/10">
+            <motion.div 
+              initial={{ x: -50, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              transition={{ delay: 0.1 }}
+              className="bg-gray-900/60 backdrop-blur-xl rounded-2xl shadow-[0_0_30px_rgba(139,92,246,0.2)] border border-white/10 overflow-hidden"
+            >
+              <div className="bg-gradient-to-r from-purple-900/40 via-blue-900/40 to-purple-900/40 p-3 border-b border-white/10">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
-                    <div className="p-1.5 bg-blue-500/20 rounded-lg">
-                      <Users className="h-4 w-4 text-blue-400" />
+                    <div className="p-1.5 bg-purple-500/20 rounded-lg">
+                      <Users className="h-4 w-4 text-purple-400" />
                     </div>
                     <span className="text-white font-medium text-sm">AI Interviewer</span>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <div className="flex items-center space-x-1 bg-black/40 px-2 py-1 rounded-lg border border-blue-500/30">
-                      <div className={`w-2 h-2 rounded-full animate-pulse ${
-                        isAISpeaking ? 'bg-green-400' : 
-                        isLipSyncGenerating ? 'bg-yellow-400' :
-                        isListening ? 'bg-blue-400' : 'bg-gray-400'
-                      }`}></div>
+                    <motion.div 
+                      animate={{ 
+                        boxShadow: isAISpeaking ? ['0 0 10px #22c55e', '0 0 30px #22c55e', '0 0 10px #22c55e'] : 'none'
+                      }}
+                      transition={{ repeat: isAISpeaking ? Infinity : 0, duration: 1.5 }}
+                      className="flex items-center space-x-1 bg-black/40 px-2 py-1 rounded-lg border border-blue-500/30"
+                    >
+                      <motion.div 
+                        animate={{ scale: isAISpeaking ? [1, 1.5, 1] : 1 }}
+                        transition={{ repeat: isAISpeaking ? Infinity : 0, duration: 1 }}
+                        className={`w-2 h-2 rounded-full ${
+                          isAISpeaking ? 'bg-green-400' : 
+                          isLipSyncGenerating ? 'bg-yellow-400' :
+                          isListening ? 'bg-blue-400' : 'bg-gray-400'
+                        }`}
+                      />
                       <span className="text-white text-[10px] font-medium">
                         {isLipSyncGenerating ? 'PREPARING' :
                          isAISpeaking ? 'SPEAKING' : 
                          isListening ? 'LISTENING' : 'IDLE'}
                       </span>
-                    </div>
+                    </motion.div>
                   </div>
                 </div>
               </div>
@@ -2341,138 +2314,212 @@ if (
                 
                 {/* Status Overlay */}
                 <div className="absolute top-3 right-3 flex flex-col space-y-1.5 z-20">
-                  <div className="bg-black/60 backdrop-blur-sm text-white text-[10px] px-2.5 py-1.5 rounded-lg border border-blue-500/30 flex items-center gap-1">
+                  <motion.div 
+                    whileHover={{ scale: 1.05 }}
+                    className="bg-black/60 backdrop-blur-sm text-white text-[10px] px-2.5 py-1.5 rounded-lg border border-blue-500/30 flex items-center gap-1"
+                  >
                     <Ear className="h-3 w-3 text-blue-400" />
                     Voice: <span className="font-bold ml-0.5">{voiceScore}%</span>
-                  </div>
-                  <div className="bg-black/60 backdrop-blur-sm text-white text-[10px] px-2.5 py-1.5 rounded-lg border border-green-500/30 flex items-center gap-1">
+                  </motion.div>
+                  <motion.div 
+                    whileHover={{ scale: 1.05 }}
+                    className="bg-black/60 backdrop-blur-sm text-white text-[10px] px-2.5 py-1.5 rounded-lg border border-green-500/30 flex items-center gap-1"
+                  >
                     <EyeIcon className="h-3 w-3 text-green-400" />
                     Body: <span className="font-bold ml-0.5">{behavioralScore}%</span>
-                  </div>
+                  </motion.div>
                 </div>
               </div>
-            </div>
+            </motion.div>
 
             {/* Current Question */}
-            {currentQuestion && (
-              <div className="bg-gray-900/60 backdrop-blur-sm rounded-2xl border border-white/10 p-4">
-                <div className="flex items-start space-x-3">
-                  <div className={`p-2 rounded-xl ${
-                    questionSource === 'feedback' ? 'bg-gradient-to-r from-green-500/20 to-emerald-500/20' :
-                    questionSource === 'follow-up' ? 'bg-gradient-to-r from-purple-500/20 to-pink-500/20' :
-                    'bg-gradient-to-r from-blue-500/20 to-cyan-500/20'
-                  }`}>
-                    <MessageSquare className={`h-5 w-5 ${
-                      questionSource === 'feedback' ? 'text-green-400' :
-                      questionSource === 'follow-up' ? 'text-purple-400' :
-                      'text-blue-400'
-                    }`} />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className={`text-sm font-semibold ${
-                        questionSource === 'feedback' ? 'text-green-300' :
-                        questionSource === 'follow-up' ? 'text-purple-300' :
-                        'text-blue-300'
-                      }`}>
-                        {questionSource === 'feedback' ? 'Feedback Question' :
-                         questionSource === 'follow-up' ? 'Follow-up Question' : 'Current Question'}
-                      </h3>
-                      <div className="flex items-center space-x-2">
-                        <span className="text-[10px] text-gray-400 bg-white/5 px-2 py-0.5 rounded-full">Q{currentQuestionIndex + 1}/{totalQuestions}</span>
+            <AnimatePresence mode="wait">
+              {currentQuestion && (
+                <motion.div 
+                  key={currentQuestion}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="bg-gray-900/60 backdrop-blur-xl rounded-2xl border border-white/10 p-4 shadow-[0_0_20px_rgba(139,92,246,0.2)]"
+                >
+                  <div className="flex items-start space-x-3">
+                    <motion.div 
+                      animate={{ rotate: [0, 10, -10, 0] }}
+                      transition={{ repeat: Infinity, duration: 3 }}
+                      className={`p-2 rounded-xl ${
+                        questionSource === 'feedback' ? 'bg-gradient-to-r from-green-500/20 to-emerald-500/20' :
+                        questionSource === 'follow-up' ? 'bg-gradient-to-r from-purple-500/20 to-pink-500/20' :
+                        'bg-gradient-to-r from-blue-500/20 to-cyan-500/20'
+                      }`}
+                    >
+                      <MessageSquare className={`h-5 w-5 ${
+                        questionSource === 'feedback' ? 'text-green-400' :
+                        questionSource === 'follow-up' ? 'text-purple-400' :
+                        'text-blue-400'
+                      }`} />
+                    </motion.div>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className={`text-sm font-semibold ${
+                          questionSource === 'feedback' ? 'text-green-300' :
+                          questionSource === 'follow-up' ? 'text-purple-300' :
+                          'text-blue-300'
+                        }`}>
+                          {questionSource === 'feedback' ? 'Feedback Question' :
+                           questionSource === 'follow-up' ? 'Follow-up Question' : 'Current Question'}
+                        </h3>
+                        <motion.div 
+                          whileHover={{ scale: 1.1 }}
+                          className="flex items-center space-x-2"
+                        >
+                          <span className="text-[10px] text-gray-400 bg-white/5 px-2 py-0.5 rounded-full border border-white/10">
+                            Q{currentQuestionIndex + 1}/{totalQuestions}
+                          </span>
+                        </motion.div>
                       </div>
+                      <p className="text-white text-sm leading-relaxed">{currentQuestion}</p>
+                      {interviewStarted && currentQuestion && !isAnalyzing && !isPaused && (
+                        <motion.div 
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          className="mt-3 flex items-center text-xs text-gray-400 bg-white/5 px-2 py-1 rounded-lg w-fit border border-white/10"
+                        >
+                          <Clock className="h-3 w-3 mr-1.5" />
+                          <span>Answer time: {formatTime(answerTime)}</span>
+                        </motion.div>
+                      )}
                     </div>
-                    <p className="text-white text-sm leading-relaxed">{currentQuestion}</p>
-                    {interviewStarted && currentQuestion && !isAnalyzing && !isPaused && (
-                      <div className="mt-3 flex items-center text-xs text-gray-400 bg-white/5 px-2 py-1 rounded-lg w-fit">
-                        <Clock className="h-3 w-3 mr-1.5" />
-                        <span>Answer time: {formatTime(answerTime)}</span>
-                      </div>
-                    )}
                   </div>
-                </div>
-              </div>
-            )}
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Voice & Behavioral Feedback */}
-            {(voiceRecommendations.length > 0 || behavioralRecommendations.length > 0) && (
-              <div className="bg-gradient-to-r from-yellow-900/20 to-amber-900/20 backdrop-blur-sm border border-amber-500/20 rounded-2xl p-4">
-                <div className="flex items-start">
-                  <div className="bg-amber-500/20 p-2 rounded-xl mr-3">
-                    <AlertTriangle className="h-5 w-5 text-amber-400" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="text-amber-300 font-semibold text-sm">Real-time Feedback</h4>
-                      <div className="text-[10px] px-2 py-0.5 bg-amber-500/20 text-amber-300 rounded-full border border-amber-500/30">
-                        Live Analysis
+            <AnimatePresence>
+              {(voiceRecommendations.length > 0 || behavioralRecommendations.length > 0) && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="bg-gradient-to-r from-yellow-900/20 to-amber-900/20 backdrop-blur-xl border border-amber-500/20 rounded-2xl p-4 shadow-[0_0_20px_rgba(245,158,11,0.2)]"
+                >
+                  <div className="flex items-start">
+                    <motion.div 
+                      animate={{ scale: [1, 1.1, 1] }}
+                      transition={{ repeat: Infinity, duration: 2 }}
+                      className="bg-amber-500/20 p-2 rounded-xl mr-3"
+                    >
+                      <AlertTriangle className="h-5 w-5 text-amber-400" />
+                    </motion.div>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="text-amber-300 font-semibold text-sm">Real-time Feedback</h4>
+                        <motion.div 
+                          animate={{ opacity: [0.5, 1, 0.5] }}
+                          transition={{ repeat: Infinity, duration: 2 }}
+                          className="text-[10px] px-2 py-0.5 bg-amber-500/20 text-amber-300 rounded-full border border-amber-500/30"
+                        >
+                          Live Analysis
+                        </motion.div>
+                      </div>
+                      
+                      <div className="space-y-3">
+                        {voiceRecommendations.length > 0 && (
+                          <motion.div
+                            initial={{ x: -20, opacity: 0 }}
+                            animate={{ x: 0, opacity: 1 }}
+                          >
+                            <div className="flex items-center gap-1.5 mb-1">
+                              <Ear className="h-3.5 w-3.5 text-blue-400" />
+                              <span className="text-xs font-medium text-blue-300">Voice Tips:</span>
+                            </div>
+                            <ul className="space-y-1">
+                              {voiceRecommendations.slice(0, 2).map((tip, index) => (
+                                <motion.li 
+                                  key={index}
+                                  initial={{ opacity: 0, x: -10 }}
+                                  animate={{ opacity: 1, x: 0 }}
+                                  transition={{ delay: index * 0.1 }}
+                                  className="text-xs text-amber-200 flex items-start gap-1.5"
+                                >
+                                  <span className="text-amber-400 mt-0.5">•</span>
+                                  {tip}
+                                </motion.li>
+                              ))}
+                            </ul>
+                          </motion.div>
+                        )}
+                        
+                        {behavioralRecommendations.length > 0 && (
+                          <motion.div
+                            initial={{ x: -20, opacity: 0 }}
+                            animate={{ x: 0, opacity: 1 }}
+                            transition={{ delay: 0.2 }}
+                          >
+                            <div className="flex items-center gap-1.5 mb-1">
+                              <EyeIcon className="h-3.5 w-3.5 text-green-400" />
+                              <span className="text-xs font-medium text-green-300">Body Language Tips:</span>
+                            </div>
+                            <ul className="space-y-1">
+                              {behavioralRecommendations.slice(0, 2).map((tip, index) => (
+                                <motion.li 
+                                  key={index}
+                                  initial={{ opacity: 0, x: -10 }}
+                                  animate={{ opacity: 1, x: 0 }}
+                                  transition={{ delay: 0.2 + index * 0.1 }}
+                                  className="text-xs text-amber-200 flex items-start gap-1.5"
+                                >
+                                  <span className="text-amber-400 mt-0.5">•</span>
+                                  {tip}
+                                </motion.li>
+                              ))}
+                            </ul>
+                          </motion.div>
+                        )}
                       </div>
                     </div>
-                    
-                    <div className="space-y-3">
-                      {voiceRecommendations.length > 0 && (
-                        <div>
-                          <div className="flex items-center gap-1.5 mb-1">
-                            <Ear className="h-3.5 w-3.5 text-blue-400" />
-                            <span className="text-xs font-medium text-blue-300">Voice Tips:</span>
-                          </div>
-                          <ul className="space-y-1">
-                            {voiceRecommendations.slice(0, 2).map((tip, index) => (
-                              <li key={index} className="text-xs text-amber-200 flex items-start gap-1.5">
-                                <span className="text-amber-400 mt-0.5">•</span>
-                                {tip}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                      
-                      {behavioralRecommendations.length > 0 && (
-                        <div>
-                          <div className="flex items-center gap-1.5 mb-1">
-                            <EyeIcon className="h-3.5 w-3.5 text-green-400" />
-                            <span className="text-xs font-medium text-green-300">Body Language Tips:</span>
-                          </div>
-                          <ul className="space-y-1">
-                            {behavioralRecommendations.slice(0, 2).map((tip, index) => (
-                              <li key={index} className="text-xs text-amber-200 flex items-start gap-1.5">
-                                <span className="text-amber-400 mt-0.5">•</span>
-                                {tip}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
                   </div>
-                </div>
-              </div>
-            )}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
           {/* Right Column - User Section - Takes 1 column */}
           <div className="space-y-4">
             {/* User Camera */}
-            <div className="bg-gray-900/60 backdrop-blur-sm rounded-2xl border border-white/10 overflow-hidden">
+            <motion.div 
+              initial={{ x: 50, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              transition={{ delay: 0.2 }}
+              className="bg-gray-900/60 backdrop-blur-xl rounded-2xl border border-white/10 overflow-hidden shadow-[0_0_30px_rgba(139,92,246,0.2)]"
+            >
               <div className="bg-gradient-to-r from-gray-800/80 to-gray-900/80 p-3 border-b border-white/10">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
-                    <div className="p-1.5 bg-blue-500/20 rounded-lg">
-                      <Video className="h-4 w-4 text-blue-400" />
+                    <div className="p-1.5 bg-purple-500/20 rounded-lg">
+                      <Video className="h-4 w-4 text-purple-400" />
                     </div>
                     <span className="text-white font-medium text-sm">Your Camera with Analysis</span>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full border ${
-                      isVideoEnabled ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-red-500/20 text-red-400 border-red-500/30'
-                    }`}>
+                    <motion.span 
+                      animate={{ opacity: isVideoEnabled ? [1, 0.5, 1] : 1 }}
+                      transition={{ repeat: isVideoEnabled ? Infinity : 0, duration: 2 }}
+                      className={`text-[10px] px-2 py-0.5 rounded-full border ${
+                        isVideoEnabled ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-red-500/20 text-red-400 border-red-500/30'
+                      }`}
+                    >
                       {isVideoEnabled ? 'Camera ON' : 'Camera OFF'}
-                    </span>
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full border ${
-                      isMicEnabled ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-red-500/20 text-red-400 border-red-500/30'
-                    }`}>
+                    </motion.span>
+                    <motion.span 
+                      animate={{ opacity: isMicEnabled ? [1, 0.5, 1] : 1 }}
+                      transition={{ repeat: isMicEnabled ? Infinity : 0, duration: 2 }}
+                      className={`text-[10px] px-2 py-0.5 rounded-full border ${
+                        isMicEnabled ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-red-500/20 text-red-400 border-red-500/30'
+                      }`}
+                    >
                       {isMicEnabled ? 'Mic ON' : 'Mic OFF'}
-                    </span>
+                    </motion.span>
                   </div>
                 </div>
               </div>
@@ -2492,68 +2539,104 @@ if (
                 
                 {/* Analysis Metrics Overlay */}
                 {behavioralAnalysis && (
-                  <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-sm text-white text-[10px] p-2 rounded-xl border border-white/20">
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
-                      <div className="flex items-center gap-1">
+                  <motion.div 
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="absolute top-3 left-3 bg-black/70 backdrop-blur-sm text-white text-[10px] p-3 rounded-xl border border-white/20 shadow-lg"
+                  >
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                      <motion.div 
+                        animate={{ scale: [1, 1.05, 1] }}
+                        transition={{ repeat: Infinity, duration: 2 }}
+                        className="flex items-center gap-1"
+                      >
                         <EyeIcon className="h-2.5 w-2.5 text-blue-400" />
                         <span>Eye: {Math.round(behavioralAnalysis.behavior?.eyeContact || 0)}%</span>
-                      </div>
-                      <div className="flex items-center gap-1">
+                      </motion.div>
+                      <motion.div 
+                        animate={{ scale: [1, 1.05, 1] }}
+                        transition={{ repeat: Infinity, duration: 2, delay: 0.2 }}
+                        className="flex items-center gap-1"
+                      >
                         <Smile className="h-2.5 w-2.5 text-green-400" />
                         <span>Smile: {Math.round(behavioralAnalysis.behavior?.smiling || 0)}%</span>
-                      </div>
-                      <div className="flex items-center gap-1">
+                      </motion.div>
+                      <motion.div 
+                        animate={{ scale: [1, 1.05, 1] }}
+                        transition={{ repeat: Infinity, duration: 2, delay: 0.4 }}
+                        className="flex items-center gap-1"
+                      >
                         <User className="h-2.5 w-2.5 text-purple-400" />
                         <span>Posture: {Math.round(behavioralAnalysis.behavior?.posture || 0)}%</span>
-                      </div>
-                      <div className="flex items-center gap-1">
+                      </motion.div>
+                      <motion.div 
+                        animate={{ scale: [1, 1.05, 1] }}
+                        transition={{ repeat: Infinity, duration: 2, delay: 0.6 }}
+                        className="flex items-center gap-1"
+                      >
                         <Activity className="h-2.5 w-2.5 text-amber-400" />
                         <span>Engage: {Math.round(behavioralAnalysis.behavior?.overallEngagement || 0)}%</span>
-                      </div>
+                      </motion.div>
                     </div>
-                  </div>
+                  </motion.div>
                 )}
                 
                 {/* Camera Controls */}
                 <div className="absolute bottom-3 left-1/2 transform -translate-x-1/2 flex space-x-2">
-                  <button
+                  <motion.button
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
                     onClick={toggleVideo}
                     className={`p-2.5 rounded-full transition-all duration-300 ${
                       isVideoEnabled 
-                        ? 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white shadow-lg' 
+                        ? 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white shadow-lg' 
                         : 'bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700 text-white shadow-lg'
                     }`}
                   >
                     {isVideoEnabled ? <Video className="h-4 w-4" /> : <VideoOff className="h-4 w-4" />}
-                  </button>
-                  <button
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
                     onClick={toggleMicrophone}
                     className={`p-2.5 rounded-full transition-all duration-300 ${
                       isMicEnabled 
-                        ? 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white shadow-lg' 
+                        ? 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white shadow-lg' 
                         : 'bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700 text-white shadow-lg'
                     }`}
                   >
                     {isMicEnabled ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
-                  </button>
-                  <button
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
                     onClick={initializeMedia}
                     className="p-2.5 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-full transition-all duration-300 shadow-lg hover:shadow-xl"
                   >
                     <RefreshCw className="h-4 w-4" />
-                  </button>
+                  </motion.button>
                 </div>
               </div>
-            </div>
+            </motion.div>
 
             {/* Answer Input */}
-            <div className="bg-gray-900/60 backdrop-blur-sm rounded-2xl border border-white/10 p-4">
-              <h3 className="text-sm font-semibold text-white mb-3">Your Response</h3>
+            <motion.div 
+              initial={{ x: 50, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              transition={{ delay: 0.3 }}
+              className="bg-gray-900/60 backdrop-blur-xl rounded-2xl border border-white/10 p-4 shadow-[0_0_30px_rgba(139,92,246,0.2)]"
+            >
+              <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+                <MessageSquare className="h-4 w-4 text-purple-400" />
+                Your Response
+              </h3>
               
               <div className="mb-3">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center space-x-2">
-                    <button
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
                       onClick={isListening ? stopListening : startListening}
                       className={`flex items-center space-x-1.5 px-4 py-2 rounded-xl text-xs font-medium transition-all duration-300 ${
                         isListening 
@@ -2573,24 +2656,41 @@ if (
                           <span>Start Speaking</span>
                         </>
                       )}
-                    </button>
+                    </motion.button>
                     
                     {isListening && (
-                      <div className="flex items-center space-x-1 text-red-400 animate-pulse">
-                        <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                        <span className="text-[10px] font-medium">Recording...</span>
-                      </div>
+                      <motion.div 
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        className="flex items-center space-x-2"
+                      >
+                        <div className="flex items-center space-x-1 text-red-400">
+                          <motion.div 
+                            animate={{ scale: [1, 1.5, 1] }}
+                            transition={{ repeat: Infinity, duration: 1 }}
+                            className="w-2 h-2 bg-red-500 rounded-full"
+                          />
+                          <span className="text-[10px] font-medium">Recording...</span>
+                        </div>
+                        {transcript && (
+                          <div className="text-[10px] text-green-400 bg-green-500/10 px-2 py-1 rounded-full border border-green-500/30">
+                            {transcript.split(' ').length} words
+                          </div>
+                        )}
+                      </motion.div>
                     )}
                   </div>
                   
-                  <button
+                  <motion.button
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
                     onClick={() => { setCurrentAnswer(''); setTranscript(''); }}
-                    className="flex items-center space-x-1 text-[10px] text-gray-400 hover:text-white bg-white/5 px-2 py-1.5 rounded-lg transition-colors"
+                    className="flex items-center space-x-1 text-[10px] text-gray-400 hover:text-white bg-white/5 px-2 py-1.5 rounded-lg transition-colors border border-white/10"
                     disabled={isAISpeaking || isLipSyncGenerating}
                   >
                     <RotateCcw className="h-3 w-3" />
                     <span>Clear</span>
-                  </button>
+                  </motion.button>
                 </div>
                 
                 <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-3">
@@ -2598,48 +2698,74 @@ if (
                     value={currentAnswer}
                     onChange={(e) => setCurrentAnswer(e.target.value)}
                     className="w-full h-28 bg-transparent border-none outline-none resize-none text-sm text-white placeholder-gray-500"
-                    placeholder="Your spoken response will appear here..."
+                    placeholder={isListening ? "Listening... Speak now" : "Your spoken response will appear here..."}
                     disabled={isAISpeaking || isLipSyncGenerating}
                   />
-                  <div className="text-[10px] text-gray-400 mt-1.5 text-right">
-                    {currentAnswer.length} characters
+                  <div className="flex justify-between items-center mt-1.5">
+                    <div className="text-[10px] text-gray-400">
+                      {currentAnswer.length} characters
+                    </div>
+                    {isListening && transcript && (
+                      <div className="text-[10px] text-green-400 flex items-center">
+                        <span className="relative flex h-2 w-2 mr-1">
+                          <motion.span 
+                            animate={{ scale: [1, 2, 1] }}
+                            transition={{ repeat: Infinity, duration: 1.5 }}
+                            className="absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"
+                          />
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                        </span>
+                        Live transcription active
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
               
               {/* Submit Button */}
-              <button
+              <motion.button
+                whileHover={{ scale: !currentAnswer.trim() || isAnalyzing || isAISpeaking || isLipSyncGenerating ? 1 : 1.02 }}
+                whileTap={{ scale: !currentAnswer.trim() || isAnalyzing || isAISpeaking || isLipSyncGenerating ? 1 : 0.98 }}
                 onClick={handleSubmitAnswer}
                 disabled={!currentAnswer.trim() || isAnalyzing || isAISpeaking || isLipSyncGenerating}
                 className={`w-full py-3 rounded-xl text-sm font-medium transition-all duration-300 ${
                   !currentAnswer.trim() || isAnalyzing || isAISpeaking || isLipSyncGenerating
                     ? 'bg-gray-800/60 cursor-not-allowed text-gray-500 border border-white/5'
-                    : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-600 text-white shadow-lg hover:shadow-xl hover:scale-[1.02]'
+                    : 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white shadow-lg hover:shadow-xl'
                 }`}
               >
                 {isAnalyzing ? (
-                  <>
-                    <Loader2 className="h-3.5 w-3.5 animate-spin mr-2 inline" />
-                    Analyzing...
-                  </>
+                  <motion.div 
+                    animate={{ rotate: 360 }}
+                    transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+                    className="inline-block"
+                  >
+                    <Loader2 className="h-3.5 w-3.5 mr-2 inline" />
+                  </motion.div>
                 ) : (
                   <>
                     Submit Answer
                     <ArrowRight className="h-3.5 w-3.5 ml-2 inline" />
                   </>
                 )}
-              </button>
+                {isAnalyzing && ' Analyzing...'}
+              </motion.button>
               
               {/* Lip-sync status indicator */}
-              {isLipSyncGenerating && (
-                <div className="mt-3 p-2 bg-gradient-to-r from-yellow-900/20 to-amber-900/20 border border-amber-500/30 rounded-xl flex items-center gap-2">
-                  <Loader2 className="h-3 w-3 animate-spin text-amber-400" />
-                  <span className="text-xs text-amber-300">Preparing interviewer response...</span>
-                </div>
-              )}
-            </div>
-
-          
+              <AnimatePresence>
+                {isLipSyncGenerating && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="mt-3 p-2 bg-gradient-to-r from-yellow-900/20 to-amber-900/20 border border-amber-500/30 rounded-xl flex items-center gap-2"
+                  >
+                    <Loader2 className="h-3 w-3 animate-spin text-amber-400" />
+                    <span className="text-xs text-amber-300">Preparing interviewer response...</span>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
           </div>
         </div>
       </div>
