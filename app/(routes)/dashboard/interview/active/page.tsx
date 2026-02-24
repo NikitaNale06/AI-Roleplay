@@ -2172,7 +2172,7 @@ Let's begin.
                 />
               </motion.div>
               <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">AI Virtual Interviewer</h1>
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">AI-Roleplay Communication Intelligence Platform</h1>
                 <div className="flex items-center space-x-2 mt-1">
                   <span className="text-sm text-blue-300">{profile?.jobTitle || profile?.title}</span>
                   <span className="text-white/30">•</span>
