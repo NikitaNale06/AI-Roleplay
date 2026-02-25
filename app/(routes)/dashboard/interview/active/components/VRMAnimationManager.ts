@@ -149,19 +149,23 @@ export class VRMAnimationManager {
   // SIMPLE CONTINUOUS LIP SYNC
   // ==========================
 
-  public randomMouthMovement() {
-    if (!this.vrm.expressionManager) return;
+ public randomMouthMovement() {
+  if (!this.vrm.expressionManager) return;
 
-    this.isSpeaking = true;
+  this.isSpeaking = true;
 
-    // reduce smile while speaking
-    this.setExpression('happy', 0.2);
+  // Reduce smile while speaking
+  this.setExpression('happy', 0.2);
 
-    const target = 0.35 + Math.random() * 0.15;
-    this.mouthValue += (target - this.mouthValue) * 0.4;
+  // Create continuous open/close motion
+  const time = performance.now() * 0.015; // speed control
+  const amplitude = 0.45; // mouth open size (adjust if needed)
+  const base = 0.15; // minimum opening
 
-    this.setExpression('aa', this.mouthValue);
-  }
+  const mouthOpen = base + Math.abs(Math.sin(time)) * amplitude;
+
+  this.setExpression('aa', mouthOpen);
+}
 
   public resetMouth() {
     if (!this.vrm.expressionManager) return;
