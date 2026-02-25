@@ -3050,7 +3050,7 @@ if (interviewCompleted) {
                             transition={{ repeat: Infinity, duration: 1 }}
                             className="w-2 h-2 bg-red-500 rounded-full"
                           />
-                          <span className="text-[10px] font-medium">Recording...</span>
+                          <span className="text-[10px] font-medium">Recording..</span>
                         </div>
                         {transcript && (
                           <div className="text-[10px] text-green-400 bg-green-500/10 px-2 py-1 rounded-full border border-green-500/30">
