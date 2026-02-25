@@ -2917,49 +2917,7 @@ if (interviewCompleted) {
                   className="absolute inset-0 w-full h-full pointer-events-none"
                 />
                 
-                {/* Analysis Metrics Overlay - Only show if valid data AND camera working AND face detected */}
-                {behavioralAnalysis?.hasValidData && behavioralAnalysis?.behavior && behavioralAnalysis.faceDetected && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="absolute top-3 left-3 bg-black/70 backdrop-blur-sm text-white text-[10px] p-3 rounded-xl border border-white/20 shadow-lg"
-                  >
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                      <motion.div 
-                        animate={{ scale: [1, 1.05, 1] }}
-                        transition={{ repeat: Infinity, duration: 2 }}
-                        className="flex items-center gap-1"
-                      >
-                        <EyeIcon className="h-2.5 w-2.5 text-blue-400" />
-                        <span>Eye: {Math.round(behavioralAnalysis.behavior?.eyeContact || 0)}%</span>
-                      </motion.div>
-                      <motion.div 
-                        animate={{ scale: [1, 1.05, 1] }}
-                        transition={{ repeat: Infinity, duration: 2, delay: 0.2 }}
-                        className="flex items-center gap-1"
-                      >
-                        <Smile className="h-2.5 w-2.5 text-green-400" />
-                        <span>Smile: {Math.round(behavioralAnalysis.behavior?.smiling || 0)}%</span>
-                      </motion.div>
-                      <motion.div 
-                        animate={{ scale: [1, 1.05, 1] }}
-                        transition={{ repeat: Infinity, duration: 2, delay: 0.4 }}
-                        className="flex items-center gap-1"
-                      >
-                        <User className="h-2.5 w-2.5 text-purple-400" />
-                        <span>Posture: {Math.round(behavioralAnalysis.behavior?.posture || 0)}%</span>
-                      </motion.div>
-                      <motion.div 
-                        animate={{ scale: [1, 1.05, 1] }}
-                        transition={{ repeat: Infinity, duration: 2, delay: 0.6 }}
-                        className="flex items-center gap-1"
-                      >
-                        <Activity className="h-2.5 w-2.5 text-amber-400" />
-                        <span>Engage: {Math.round(behavioralAnalysis.behavior?.overallEngagement || 0)}%</span>
-                      </motion.div>
-                    </div>
-                  </motion.div>
-                )}
+               
                 
                 {/* Camera Controls */}
                 <div className="absolute bottom-3 left-1/2 transform -translate-x-1/2 flex space-x-2">
