@@ -91,7 +91,11 @@ export class VRMAnimationManager {
 
       this.headBone.rotation.x =
         this.neutralHeadRotation.x + Math.cos(time * 0.8) * intensity * 0.6;
-
+      
+      if (this.isSpeaking) {
+  this.headBone.rotation.z =
+    this.neutralHeadRotation.z + Math.sin(time * 1.5) * 0.01;
+}  
       this.headAnimationFrame = requestAnimationFrame(animate);
     };
 
@@ -169,7 +173,7 @@ export class VRMAnimationManager {
   this.setExpression('happy', 0.2);
 
   // Create continuous open/close motion
-  const time = performance.now() * 0.015; // speed control
+  const time = performance.now() * 0.012; // speed control
   const amplitude = 0.45; // mouth open size (adjust if needed)
   const base = 0.15; // minimum opening
 
