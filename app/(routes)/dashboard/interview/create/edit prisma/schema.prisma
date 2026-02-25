@@ -1,0 +1,27 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model InterviewResult {
+  id                 String   @id @default(cuid())
+  userId             String
+  finalScore         Int
+  answers            String   // JSON string
+  totalTime          Int
+  questionsAsked     Int
+  assessmentType     String?
+  fieldCategory      String?
+  voiceAnalysis      String?  // JSON string
+  behavioralAnalysis String?  // JSON string
+  completedAt        DateTime @default(now())
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([userId])
+  @@index([completedAt])
+}

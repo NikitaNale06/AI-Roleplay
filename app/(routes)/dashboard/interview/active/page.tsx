@@ -12,7 +12,7 @@ import {
   Pause, RotateCcw, Loader2, HelpCircle, Activity, Users, Target,
   Ear, Eye as EyeIcon, Smile, AlertTriangle, ThumbsUp, Shield,
   ZapOff, Waves, Volume, Volume1, BarChart3, Gauge, Focus,
-  Cpu, CpuIcon, Radio, RadioTower, Star, Trophy, Medal
+  Cpu, CpuIcon, Radio, RadioTower, Star, Trophy, Medal, StopCircle
 } from 'lucide-react';
 
 declare global {
@@ -94,6 +94,8 @@ interface VoiceMetrics {
   pauses: number;
   speechPattern: 'fluent' | 'hesitant' | 'rushed' | 'moderate';
   recommendations: string[];
+  isSpeaking: boolean;
+  hasValidData: boolean;
 }
 
 interface BehavioralMetrics {
@@ -105,6 +107,9 @@ interface BehavioralMetrics {
   headMovement: number;
   overallEngagement: number;
   recommendations: string[];
+  faceDetected: boolean;
+  cameraWorking: boolean;
+  hasValidData: boolean;
 }
 
 class ElevenLabsClient {
@@ -165,18 +170,17 @@ class ElevenLabsClient {
 
 const elevenLabsClient = new ElevenLabsClient(process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || '');
 
-// Real Voice Analyzer using Deepgram
+// Real Voice Analyzer using Web Audio API
 class RealVoiceAnalyzer {
   private audioContext: AudioContext | null = null;
   private analyser: AnalyserNode | null = null;
   private mediaStreamSource: MediaStreamAudioSourceNode | null = null;
   private isAnalyzing = false;
   private analysisInterval: NodeJS.Timeout | null = null;
-  private mediaRecorder: MediaRecorder | null = null;
-  private audioChunks: Blob[] = [];
-  private recordingInterval: NodeJS.Timeout | null = null;
   private lastVolume: number = 0;
   private silentFrames: number = 0;
+  private hasValidAudioStream = false;
+  private audioTracksEnabled = true;
   
   private voiceMetrics: VoiceMetrics = {
     volume: 0,
@@ -186,11 +190,23 @@ class RealVoiceAnalyzer {
     fillerWords: [],
     pauses: 0,
     speechPattern: 'moderate',
-    recommendations: []
+    recommendations: [],
+    isSpeaking: false,
+    hasValidData: false
   };
 
   async startRealTimeAnalysis(audioStream: MediaStream) {
     this.stopAnalysis();
+    
+    // Check if audio tracks are enabled
+    const audioTracks = audioStream.getAudioTracks();
+    this.audioTracksEnabled = audioTracks.length > 0 && audioTracks[0].enabled;
+    
+    if (!this.audioTracksEnabled || audioTracks.length === 0) {
+      console.warn("⚠️ No audio tracks or audio disabled");
+      this.hasValidAudioStream = false;
+      return;
+    }
 
     try {
       this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -205,30 +221,45 @@ class RealVoiceAnalyzer {
 
       const bufferLength = this.analyser.frequencyBinCount;
       const dataArray = new Uint8Array(bufferLength);
+      const timeDomainData = new Uint8Array(bufferLength);
 
       this.isAnalyzing = true;
+      this.hasValidAudioStream = true;
 
       this.analysisInterval = setInterval(() => {
         if (!this.analyser || !this.isAnalyzing) return;
 
         this.analyser.getByteFrequencyData(dataArray);
+        this.analyser.getByteTimeDomainData(timeDomainData);
         
         let sum = 0;
+        let peak = 0;
         for (let i = 0; i < bufferLength; i++) {
           sum += dataArray[i];
+          if (dataArray[i] > peak) peak = dataArray[i];
         }
         
         const averageVolume = sum / bufferLength;
         const normalizedVolume = Math.min(100, Math.max(0, Math.round(averageVolume * 0.8)));
-        const isSpeaking = normalizedVolume > 15;
+        const isSpeaking = normalizedVolume > 12; // Lower threshold for better detection
         this.lastVolume = normalizedVolume;
+        
+        // Calculate speech clarity based on signal variation
+        let variation = 0;
+        for (let i = 1; i < bufferLength; i++) {
+          variation += Math.abs(timeDomainData[i] - timeDomainData[i-1]);
+        }
+        const clarity = Math.min(100, Math.round((variation / bufferLength) * 2));
         
         if (isSpeaking) {
           this.silentFrames = 0;
           this.voiceMetrics.volume = normalizedVolume;
           this.voiceMetrics.confidence = Math.min(100, Math.round(normalizedVolume * 0.9 + 20));
-          this.voiceMetrics.clarity = Math.min(100, Math.round(normalizedVolume * 0.8 + 30));
+          this.voiceMetrics.clarity = Math.min(100, clarity + 30);
+          this.voiceMetrics.isSpeaking = true;
+          this.voiceMetrics.hasValidData = true;
           
+          // Calculate pace based on speech patterns
           if (normalizedVolume > 70) {
             this.voiceMetrics.pace = 170;
             this.voiceMetrics.speechPattern = 'rushed';
@@ -242,10 +273,13 @@ class RealVoiceAnalyzer {
         } else {
           this.silentFrames++;
           
-          if (this.silentFrames > 5) {
+          if (this.silentFrames > 10) {
             this.voiceMetrics.volume = 0;
-            this.voiceMetrics.confidence = Math.max(0, this.voiceMetrics.confidence - 5);
-            this.voiceMetrics.clarity = Math.max(0, this.voiceMetrics.clarity - 5);
+            this.voiceMetrics.isSpeaking = false;
+            // Only keep hasValidData if we've seen speech before
+            if (this.voiceMetrics.hasValidData && this.silentFrames > 30) {
+              this.voiceMetrics.hasValidData = false;
+            }
           }
         }
         
@@ -256,20 +290,28 @@ class RealVoiceAnalyzer {
       console.log("✅ Real voice analysis started");
     } catch (error) {
       console.error("❌ Voice analysis initialization failed:", error);
+      this.hasValidAudioStream = false;
     }
   }
 
   private updateRecommendations(isSpeaking: boolean) {
     const recommendations: string[] = [];
     
-    if (!isSpeaking) {
-      if (this.silentFrames > 10) {
-        recommendations.push("Start speaking - the interviewer is waiting for your response");
-      }
+    if (!this.hasValidAudioStream || !this.audioTracksEnabled) {
+      recommendations.push("Microphone not detected or disabled - please check your microphone");
+      this.voiceMetrics.recommendations = recommendations;
       return;
     }
     
-    if (this.voiceMetrics.volume < 30) {
+    if (!isSpeaking) {
+      if (this.silentFrames > 20) {
+        recommendations.push("Start speaking - the interviewer is waiting for your response");
+      }
+      this.voiceMetrics.recommendations = recommendations;
+      return;
+    }
+    
+    if (this.voiceMetrics.volume < 20) {
       recommendations.push("Speak louder - your voice is too quiet");
     } else if (this.voiceMetrics.volume > 85) {
       recommendations.push("Lower your volume slightly - you're speaking quite loudly");
@@ -277,8 +319,10 @@ class RealVoiceAnalyzer {
     
     if (this.voiceMetrics.speechPattern === 'rushed') {
       recommendations.push("Slow down your pace - you're speaking too quickly");
-    } else if (this.voiceMetrics.speechPattern === 'hesitant') {
-      recommendations.push("Speak with more confidence - avoid hesitations");
+    }
+    
+    if (this.voiceMetrics.clarity < 40) {
+      recommendations.push("Speak more clearly - enunciate your words");
     }
     
     this.voiceMetrics.recommendations = recommendations.slice(0, 2);
@@ -290,25 +334,21 @@ class RealVoiceAnalyzer {
       this.analysisInterval = null;
     }
     
-    if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
-      try {
-        this.mediaRecorder.stop();
-      } catch (e) {
-        console.warn('Error stopping media recorder:', e);
-      }
-    }
-    
     if (this.audioContext) {
       this.audioContext.close();
       this.audioContext = null;
     }
     
     this.isAnalyzing = false;
+    this.hasValidAudioStream = false;
     console.log('⏹️ Real voice analysis stopped');
   }
 
   getCurrentAnalysis() {
-    const overallScore = this.voiceMetrics.confidence > 0 
+    // Only calculate scores if we have valid data and audio is enabled
+    const hasValidData = this.hasValidAudioStream && this.voiceMetrics.hasValidData && this.audioTracksEnabled;
+    
+    const overallScore = hasValidData 
       ? Math.round(
           (this.voiceMetrics.clarity * 0.4 +
            this.voiceMetrics.confidence * 0.4 +
@@ -320,12 +360,14 @@ class RealVoiceAnalyzer {
       voice: this.voiceMetrics, 
       overallScore,
       summary: {
-        clarity: this.voiceMetrics.clarity,
-        confidence: this.voiceMetrics.confidence,
-        paceScore: this.voiceMetrics.confidence > 0 ? Math.min(100, this.voiceMetrics.pace / 2) : 0,
+        clarity: hasValidData ? this.voiceMetrics.clarity : 0,
+        confidence: hasValidData ? this.voiceMetrics.confidence : 0,
+        paceScore: hasValidData ? Math.min(100, this.voiceMetrics.pace / 2) : 0,
         overallScore: overallScore
       },
-      recommendations: this.voiceMetrics.recommendations
+      recommendations: this.voiceMetrics.recommendations,
+      hasValidData: hasValidData,
+      isSpeaking: this.voiceMetrics.isSpeaking
     };
   }
 }
@@ -335,11 +377,12 @@ class RealBehavioralAnalyzer {
   private isAnalyzing = false;
   private analysisInterval: NodeJS.Timeout | null = null;
   private videoElement: HTMLVideoElement | null = null;
-  private lastFrameData: string = '';
-  private hasUser = false;
-  private cameraWorking = false;
   private faceDetected = false;
   private consecutiveNoFaceFrames = 0;
+  private cameraWorking = false;
+  private hasValidVideoStream = false;
+  private videoTracksEnabled = true;
+  private lastFrameAnalysis = '';
   
   private behavioralMetrics: BehavioralMetrics = {
     eyeContact: 0,
@@ -349,7 +392,10 @@ class RealBehavioralAnalyzer {
     gestures: 0,
     headMovement: 0,
     overallEngagement: 0,
-    recommendations: []
+    recommendations: [],
+    faceDetected: false,
+    cameraWorking: false,
+    hasValidData: false
   };
 
   startRealTimeAnalysis(videoElement: HTMLVideoElement) {
@@ -357,10 +403,17 @@ class RealBehavioralAnalyzer {
     
     this.videoElement = videoElement;
     this.isAnalyzing = true;
-    this.hasUser = false;
-    this.cameraWorking = false;
     this.faceDetected = false;
     this.consecutiveNoFaceFrames = 0;
+    this.cameraWorking = false;
+    this.hasValidVideoStream = false;
+    
+    // Check if video tracks are enabled
+    if (videoElement.srcObject) {
+      const stream = videoElement.srcObject as MediaStream;
+      const videoTracks = stream.getVideoTracks();
+      this.videoTracksEnabled = videoTracks.length > 0 && videoTracks[0].enabled;
+    }
     
     this.behavioralMetrics = {
       eyeContact: 0,
@@ -370,30 +423,38 @@ class RealBehavioralAnalyzer {
       gestures: 0,
       headMovement: 0,
       overallEngagement: 0,
-      recommendations: ["Camera not detected - please enable your camera"]
+      recommendations: ["Waiting for camera..."],
+      faceDetected: false,
+      cameraWorking: false,
+      hasValidData: false
     };
     
     this.analysisInterval = setInterval(() => {
       if (!this.videoElement || !this.isAnalyzing) return;
-      this.checkCameraStatus();
-    }, 1000);
+      this.analyzeVideoFrame();
+    }, 500);
     
     console.log("✅ Real behavioral analysis started");
   }
 
-  private checkCameraStatus() {
+  private analyzeVideoFrame() {
     if (!this.videoElement) return;
     
+    // Check if video tracks are enabled
+    if (this.videoElement.srcObject) {
+      const stream = this.videoElement.srcObject as MediaStream;
+      const videoTracks = stream.getVideoTracks();
+      this.videoTracksEnabled = videoTracks.length > 0 && videoTracks[0].enabled;
+    }
+    
+    // Check if camera is actually working and producing frames
     const isVideoPlaying = this.videoElement.readyState >= 2;
-    const hasDimensions = this.videoElement.videoWidth > 0 && this.videoElement.videoHeight > 0;
+    const hasDimensions = this.videoElement.videoWidth > 100 && this.videoElement.videoHeight > 100;
     
-    this.cameraWorking = isVideoPlaying && hasDimensions;
+    this.cameraWorking = isVideoPlaying && hasDimensions && this.videoTracksEnabled;
     
+    // If camera is not working or disabled, set all metrics to 0
     if (!this.cameraWorking) {
-      this.hasUser = false;
-      this.faceDetected = false;
-      this.consecutiveNoFaceFrames++;
-      
       this.behavioralMetrics = {
         eyeContact: 0,
         smiling: 0,
@@ -402,51 +463,174 @@ class RealBehavioralAnalyzer {
         gestures: 0,
         headMovement: 0,
         overallEngagement: 0,
-        recommendations: ["Camera not detected - please enable your camera for behavioral analysis"]
+        recommendations: ["Camera not detected or disabled - please enable your camera for behavioral analysis"],
+        faceDetected: false,
+        cameraWorking: false,
+        hasValidData: false
       };
       return;
     }
     
-    this.simulateFaceDetection();
-  }
-
-  private simulateFaceDetection() {
-    const faceProbablyDetected = Math.random() > 0.3;
-    
-    if (faceProbablyDetected) {
-      this.faceDetected = true;
-      this.consecutiveNoFaceFrames = 0;
-      this.hasUser = true;
+    try {
+      // Create a canvas to analyze video frame
+      const canvas = document.createElement('canvas');
+      canvas.width = this.videoElement.videoWidth;
+      canvas.height = this.videoElement.videoHeight;
+      const ctx = canvas.getContext('2d');
       
-      const variation = () => (Math.random() * 10) - 5;
-      
-      this.behavioralMetrics = {
-        eyeContact: Math.min(95, Math.max(15, 50 + variation())),
-        smiling: Math.min(85, Math.max(10, 40 + variation())),
-        posture: Math.min(90, Math.max(30, 60 + variation())),
-        attention: Math.min(90, Math.max(25, 55 + variation())),
-        gestures: Math.min(80, Math.max(10, 35 + variation())),
-        headMovement: Math.min(75, Math.max(10, 30 + variation())),
-        overallEngagement: Math.min(90, Math.max(20, 45 + variation())),
-        recommendations: []
-      };
-    } else {
-      this.consecutiveNoFaceFrames++;
-      
-      if (this.consecutiveNoFaceFrames > 3) {
-        this.faceDetected = false;
+      if (ctx) {
+        ctx.drawImage(this.videoElement, 0, 0, canvas.width, canvas.height);
         
-        this.behavioralMetrics = {
-          eyeContact: 0,
-          smiling: 0,
-          posture: 0,
-          attention: 0,
-          gestures: 0,
-          headMovement: 0,
-          overallEngagement: 0,
-          recommendations: ["No face detected - please position yourself in front of the camera"]
-        };
+        // Get image data to check for motion/face
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
+        
+        // Check if there's significant variation in the image (indicates something is there)
+        // Also check if the image is mostly black (shutter closed or no one in frame)
+        let totalVariation = 0;
+        let darkPixels = 0;
+        let skinTonePixels = 0;
+        const totalPixels = data.length / 4;
+        
+        for (let i = 0; i < data.length; i += 20) { // Sample pixels
+          const r = data[i];
+          const g = data[i + 1];
+          const b = data[i + 2];
+          
+          // Check if pixel is very dark (shutter closed or empty frame)
+          if (r < 30 && g < 30 && b < 30) {
+            darkPixels++;
+          }
+          
+          // Check for skin tone-like colors (rough approximation)
+          if (r > 60 && g > 40 && b > 20 && r > g && g > b) {
+            skinTonePixels++;
+          }
+          
+          totalVariation += (r + g + b) % 30; // Measure of variation
+        }
+        
+        const darkPixelRatio = darkPixels / (totalPixels / 20);
+        const skinToneRatio = skinTonePixels / (totalPixels / 20);
+        const isShutterClosed = darkPixelRatio > 0.7; // More than 70% dark pixels
+        
+        // If shutter is closed or frame is empty, no face detected
+        if (isShutterClosed || skinToneRatio < 0.05) {
+          this.faceDetected = false;
+          this.consecutiveNoFaceFrames++;
+          
+          this.behavioralMetrics = {
+            eyeContact: 0,
+            smiling: 0,
+            posture: 0,
+            attention: 0,
+            gestures: 0,
+            headMovement: 0,
+            overallEngagement: 0,
+            recommendations: ["No face detected - please position yourself in front of the camera"],
+            faceDetected: false,
+            cameraWorking: true,
+            hasValidData: false
+          };
+          return;
+        }
+        
+        // If there's enough variation and skin tone, assume face is detected
+        const possibleFaceDetected = totalVariation > 800 && skinToneRatio > 0.1;
+        
+        if (possibleFaceDetected) {
+          this.faceDetected = true;
+          this.consecutiveNoFaceFrames = 0;
+          
+          // Calculate metrics based on video analysis
+          // Use more sophisticated detection for face position
+          
+          // Look for face-like patterns in the center of frame
+          const centerX = canvas.width / 2;
+          const centerY = canvas.height / 2;
+          const faceSize = Math.min(canvas.width, canvas.height) * 0.3;
+          
+          // Sample center region where face should be
+          let centerBrightness = 0;
+          let sampleCount = 0;
+          
+          for (let y = centerY - faceSize/2; y < centerY + faceSize/2; y += 15) {
+            for (let x = centerX - faceSize/2; x < centerX + faceSize/2; x += 15) {
+              if (x >= 0 && x < canvas.width && y >= 0 && y < canvas.height) {
+                const idx = Math.floor(y) * canvas.width * 4 + Math.floor(x) * 4;
+                if (idx < data.length - 3) {
+                  centerBrightness += (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
+                  sampleCount++;
+                }
+              }
+            }
+          }
+          
+          const avgBrightness = sampleCount > 0 ? centerBrightness / sampleCount : 50;
+          const faceConfidence = Math.min(100, Math.max(0, avgBrightness / 2.55));
+          
+          // Only calculate metrics if face confidence is high enough
+          if (faceConfidence > 30) {
+            // Calculate eye contact based on face position relative to center
+            const eyeContactBase = Math.min(85, Math.max(0, faceConfidence * 0.8));
+            const smilingBase = Math.min(70, Math.max(0, faceConfidence * 0.6 - 10));
+            const postureBase = Math.min(80, Math.max(0, faceConfidence * 0.7));
+            const attentionBase = Math.min(85, Math.max(0, faceConfidence * 0.9));
+            
+            this.behavioralMetrics = {
+              eyeContact: Math.round(eyeContactBase),
+              smiling: Math.round(smilingBase),
+              posture: Math.round(postureBase),
+              attention: Math.round(attentionBase),
+              gestures: Math.round(attentionBase * 0.6),
+              headMovement: Math.round(100 - attentionBase),
+              overallEngagement: Math.round((eyeContactBase + postureBase + attentionBase) / 3),
+              recommendations: [],
+              faceDetected: true,
+              cameraWorking: true,
+              hasValidData: true
+            };
+          } else {
+            this.faceDetected = false;
+            this.behavioralMetrics = {
+              eyeContact: 0,
+              smiling: 0,
+              posture: 0,
+              attention: 0,
+              gestures: 0,
+              headMovement: 0,
+              overallEngagement: 0,
+              recommendations: ["Face not clearly visible - please ensure good lighting"],
+              faceDetected: false,
+              cameraWorking: true,
+              hasValidData: false
+            };
+          }
+        } else {
+          this.consecutiveNoFaceFrames++;
+          
+          if (this.consecutiveNoFaceFrames > 3) {
+            this.faceDetected = false;
+            
+            this.behavioralMetrics = {
+              eyeContact: 0,
+              smiling: 0,
+              posture: 0,
+              attention: 0,
+              gestures: 0,
+              headMovement: 0,
+              overallEngagement: 0,
+              recommendations: ["No face detected - please position yourself in front of the camera"],
+              faceDetected: false,
+              cameraWorking: true,
+              hasValidData: false
+            };
+          }
+        }
       }
+    } catch (e) {
+      console.warn('Error analyzing video frame:', e);
+      this.hasValidVideoStream = false;
     }
     
     this.updateRecommendations();
@@ -456,7 +640,7 @@ class RealBehavioralAnalyzer {
     const recommendations: string[] = [];
     
     if (!this.cameraWorking) {
-      recommendations.push("Camera not detected - please check your camera permissions");
+      recommendations.push("Camera not detected or disabled - please check your camera permissions");
       this.behavioralMetrics.recommendations = recommendations;
       return;
     }
@@ -467,23 +651,23 @@ class RealBehavioralAnalyzer {
       return;
     }
     
-    if (this.behavioralMetrics.eyeContact < 35 && this.behavioralMetrics.eyeContact > 0) {
+    if (this.behavioralMetrics.eyeContact < 35 && this.behavioralMetrics.hasValidData) {
       recommendations.push("Try to look at the camera more - it improves eye contact");
     }
     
-    if (this.behavioralMetrics.smiling < 25 && this.behavioralMetrics.smiling > 0) {
+    if (this.behavioralMetrics.smiling < 25 && this.behavioralMetrics.hasValidData) {
       recommendations.push("A warm smile can help you appear more confident");
     }
     
-    if (this.behavioralMetrics.posture < 45 && this.behavioralMetrics.posture > 0) {
+    if (this.behavioralMetrics.posture < 45 && this.behavioralMetrics.hasValidData) {
       recommendations.push("Sit up straight - better posture improves presence");
     }
     
-    if (this.behavioralMetrics.attention < 40 && this.behavioralMetrics.attention > 0) {
+    if (this.behavioralMetrics.attention < 40 && this.behavioralMetrics.hasValidData) {
       recommendations.push("Stay focused on the interview - maintain engagement");
     }
     
-    if (recommendations.length === 0 && this.faceDetected) {
+    if (recommendations.length === 0 && this.faceDetected && this.behavioralMetrics.hasValidData) {
       recommendations.push("Good presence - keep it up!");
     }
     
@@ -497,13 +681,14 @@ class RealBehavioralAnalyzer {
     }
     
     this.isAnalyzing = false;
+    this.hasValidVideoStream = false;
     console.log('⏹️ Real behavioral analysis stopped');
   }
 
   getCurrentAnalysis() {
-    const shouldShowScore = this.cameraWorking && this.faceDetected;
+    const hasValidData = this.cameraWorking && this.faceDetected && this.behavioralMetrics.hasValidData && this.videoTracksEnabled;
     
-    const overallScore = shouldShowScore 
+    const overallScore = hasValidData 
       ? Math.round(
           (this.behavioralMetrics.eyeContact * 0.25 +
            this.behavioralMetrics.posture * 0.25 +
@@ -516,13 +701,14 @@ class RealBehavioralAnalyzer {
       behavior: this.behavioralMetrics, 
       overallScore,
       summary: {
-        confidence: shouldShowScore ? Math.round((this.behavioralMetrics.eyeContact + this.behavioralMetrics.posture) / 2) : 0,
-        engagement: shouldShowScore ? Math.round((this.behavioralMetrics.attention + this.behavioralMetrics.smiling) / 2) : 0,
+        confidence: hasValidData ? Math.round((this.behavioralMetrics.eyeContact + this.behavioralMetrics.posture) / 2) : 0,
+        engagement: hasValidData ? Math.round((this.behavioralMetrics.attention + this.behavioralMetrics.smiling) / 2) : 0,
         overallScore: overallScore
       },
       recommendations: this.behavioralMetrics.recommendations,
       cameraWorking: this.cameraWorking,
-      faceDetected: this.faceDetected
+      faceDetected: this.faceDetected,
+      hasValidData: hasValidData
     };
   }
 }
@@ -682,32 +868,62 @@ const getQuestionText = (question: any): string => {
   return 'Question not available';
 };
 
-const calculateRealisticScore = (answer: string, baseScore: number, voiceData?: any, behavioralData?: any): number => {
+const calculateRealisticScore = (
+  answer: string, 
+  baseScore: number, 
+  voiceData?: any, 
+  behavioralData?: any
+): number => {
   const wordCount = answer.trim().split(/\s+/).length;
-  let qualityScore = baseScore;
+  let qualityScore = 50; // Start at 50 base
   
-  if (wordCount < 10) qualityScore -= 20;
-  else if (wordCount < 20) qualityScore -= 10;
-  else if (wordCount > 100) qualityScore += 5;
+  // Only calculate if there's actual content
+  if (wordCount < 3) return 0; // Too short, no score
+  
+  // Content quality metrics
+  if (wordCount < 10) qualityScore -= 15;
+  else if (wordCount < 20) qualityScore -= 5;
+  else if (wordCount > 50) qualityScore += 10;
+  else if (wordCount > 30) qualityScore += 5;
   
   const sentenceCount = answer.split(/[.!?]+/).filter(s => s.trim().length > 0).length;
-  if (sentenceCount >= 2) qualityScore += 10;
+  if (sentenceCount >= 3) qualityScore += 15;
+  else if (sentenceCount >= 2) qualityScore += 8;
   
-  if (answer.includes('because') || answer.includes('therefore')) qualityScore += 5;
-  if (answer.includes('example') || answer.includes('for instance')) qualityScore += 10;
-  if (/\d+%|\d+ years|\d+ projects/i.test(answer)) qualityScore += 8;
+  if (answer.includes('because') || answer.includes('therefore')) qualityScore += 8;
+  if (answer.includes('example') || answer.includes('for instance')) qualityScore += 12;
+  if (/\d+%|\d+ years|\d+ projects/i.test(answer)) qualityScore += 10;
   
-  if (voiceData) {
-    const voiceScore = voiceData.overallScore || 50;
-    qualityScore = qualityScore * 0.7 + voiceScore * 0.3;
+  // Voice metrics contribution - only if valid AND user actually spoke
+  let voiceContribution = 0;
+  if (voiceData && voiceData.hasValidData && voiceData.isSpeaking) {
+    const voiceScore = voiceData.overallScore || 0;
+    if (voiceScore > 15) {
+      voiceContribution = voiceScore * 0.3;
+    }
   }
   
-  if (behavioralData) {
-    const behaviorScore = behavioralData.overallScore || 50;
-    qualityScore = qualityScore * 0.8 + behaviorScore * 0.2;
+  // Behavioral metrics contribution - only if valid AND face detected
+  let behavioralContribution = 0;
+  if (behavioralData && behavioralData.hasValidData && behavioralData.faceDetected) {
+    const behaviorScore = behavioralData.overallScore || 0;
+    if (behaviorScore > 15) {
+      behavioralContribution = behaviorScore * 0.2;
+    }
   }
   
-  return Math.max(20, Math.min(95, Math.round(qualityScore)));
+  // Calculate final score - weight based on what's available
+  let finalScore = qualityScore;
+  
+  if (voiceContribution > 0 && behavioralContribution > 0) {
+    finalScore = Math.round((qualityScore * 0.5) + voiceContribution + behavioralContribution);
+  } else if (voiceContribution > 0) {
+    finalScore = Math.round((qualityScore * 0.7) + voiceContribution);
+  } else if (behavioralContribution > 0) {
+    finalScore = Math.round((qualityScore * 0.8) + behavioralContribution);
+  }
+  
+  return Math.max(0, Math.min(95, Math.round(finalScore)));
 };
 
 const generateFeedbackWithQuestion = (score: number, answer: string, originalQuestion: string, voiceData?: any, behavioralData?: any): { feedback: string, feedbackQuestion: string | null } => {
@@ -715,10 +931,11 @@ const generateFeedbackWithQuestion = (score: number, answer: string, originalQue
   
   let feedbackPrefix = "";
   
-  if (voiceData && voiceData.voice) {
+  // Add voice feedback only if valid data exists
+  if (voiceData && voiceData.hasValidData && voiceData.voice) {
     if (voiceData.voice.pace > 170) {
       feedbackPrefix += " You were speaking a bit quickly. ";
-    } else if (voiceData.voice.pace < 120) {
+    } else if (voiceData.voice.pace < 120 && voiceData.voice.volume > 0) {
       feedbackPrefix += " Try to speak a bit faster for more impact. ";
     }
     
@@ -727,7 +944,8 @@ const generateFeedbackWithQuestion = (score: number, answer: string, originalQue
     }
   }
   
-  if (behavioralData && behavioralData.behavior) {
+  // Add behavioral feedback only if valid data exists
+  if (behavioralData && behavioralData.hasValidData && behavioralData.behavior) {
     if (behavioralData.behavior.eyeContact < 40) {
       feedbackPrefix += " Try to maintain better eye contact with the camera. ";
     }
@@ -1083,7 +1301,7 @@ export default function DynamicInterviewPage() {
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
   const [isMicEnabled, setIsMicEnabled] = useState(true);
   const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
-  const [performanceScore, setPerformanceScore] = useState(0);
+  const [performanceScore, setPerformanceScore] = useState(0); // Start at 0
   const [conversationContext, setConversationContext] = useState<string[]>([]);
   const [questionsAsked, setQuestionsAsked] = useState(0);
   const [answerTime, setAnswerTime] = useState(0);
@@ -1097,11 +1315,11 @@ export default function DynamicInterviewPage() {
   const [interviewStage, setInterviewStage] = useState<'welcome' | 'main' | 'followup' | 'complete'>('welcome');
   
   // Interview Adaptive States
-  const [currentPerformance, setCurrentPerformance] = useState<number>(60);
+  const [currentPerformance, setCurrentPerformance] = useState<number>(0); // Start at 0
   const [isFollowUp, setIsFollowUp] = useState<boolean>(false);
   const [previousQuestions, setPreviousQuestions] = useState<string[]>([]);
   const [conversationHistory, setConversationHistory] = useState<string[]>([]);
-  
+  const [hasInterviewStarted, setHasInterviewStarted] = useState(false);
   // Voice and Behavioral Analysis State
   const [voiceAnalysis, setVoiceAnalysis] = useState<any>(null);
   const [behavioralAnalysis, setBehavioralAnalysis] = useState<any>(null);
@@ -1240,12 +1458,23 @@ export default function DynamicInterviewPage() {
           
           setVoiceAnalysis(voiceData);
           setBehavioralAnalysis(behavioralData);
-          setVoiceRecommendations(voiceData.recommendations || []);
-          setBehavioralRecommendations(behavioralData.recommendations || []);
+          
+          // Only show recommendations if we have valid data
+          if (voiceData.hasValidData) {
+            setVoiceRecommendations(voiceData.recommendations || []);
+          } else {
+            setVoiceRecommendations([]);
+          }
+          
+          if (behavioralData.hasValidData) {
+            setBehavioralRecommendations(behavioralData.recommendations || []);
+          } else {
+            setBehavioralRecommendations([]);
+          }
         } catch (error) {
           console.error('❌ Analyzer error:', error);
         }
-      }, 2000);
+      }, 1000);
     } else if (analysisIntervalRef.current) {
       clearInterval(analysisIntervalRef.current);
     }
@@ -1298,6 +1527,17 @@ export default function DynamicInterviewPage() {
       if (videoTrack) {
         videoTrack.enabled = !isVideoEnabled;
         setIsVideoEnabled(!isVideoEnabled);
+        
+        // If video is disabled, reset behavioral analysis
+        if (!isVideoEnabled) {
+          // Force reset behavioral metrics
+          realBehavioralAnalyzerRef.current.stopAnalysis();
+          if (videoRef.current) {
+            setTimeout(() => {
+              realBehavioralAnalyzerRef.current.startRealTimeAnalysis(videoRef.current!);
+            }, 100);
+          }
+        }
       }
     }
   }, [mediaStream, isVideoEnabled]);
@@ -1413,69 +1653,222 @@ export default function DynamicInterviewPage() {
   }, [setTranscript]);
 
   // ============== COMPLETE INTERVIEW ==============
-  const completeInterview = useCallback(async () => {
-    console.log('🏁 Completing interview...');
-    
-    setInterviewCompleted(true);
-    setInterviewStage('complete');
-    
-    realVoiceAnalyzerRef.current.stopAnalysis();
-    realBehavioralAnalyzerRef.current.stopAnalysis();
-    
-    stopSpeaking();
-    
-    const finalScore = answers.length > 0 
-      ? Math.round(answers.reduce((sum: number, answer: any) => sum + answer.score, 0) / answers.length)
-      : performanceScore;
-    
-    const voiceData = realVoiceAnalyzerRef.current.getCurrentAnalysis();
-    const behavioralData = realBehavioralAnalyzerRef.current.getCurrentAnalysis();
-    
-    const completionMessage = `Assessment complete! You answered ${questionsAsked} questions. 
-    Your overall performance score is ${finalScore}%. 
-    Your voice confidence was ${voiceData?.summary?.confidence || 0}% and 
-    your body language engagement was ${behavioralData?.summary?.engagement || 0}%. 
-    Thank you for participating!`;
-    
-    await speakWithLipSync(completionMessage, 'happy');
-    
-    const interviewResults = {
-      profile,
-      answers,
-      finalScore,
-      voiceAnalysis: voiceData,
-      behavioralAnalysis: behavioralData,
-      completedAt: new Date().toISOString(),
-      totalQuestions: questionsAsked,
-      assessmentType: profile?.assessmentType,
-      fieldCategory: profile?.fieldCategory,
-      skills: profile?.skills,
-      subject: profile?.subject,
-      scenario: profile?.scenario,
-      focusArea: profile?.focusArea,
-      totalTime: answerTime,
-      difficulty: profile?.difficulty || 'medium'
-    };
-    
-    localStorage.setItem('interviewResults', JSON.stringify(interviewResults));
-    console.log('💾 Saved interview results:', {
-      finalScore,
-      questionsAnswered: questionsAsked,
-      assessmentType: profile?.assessmentType,
-      fieldCategory: profile?.fieldCategory
+const completeInterview = useCallback(async (manualStop = false) => {
+  console.log('🏁 Completing interview...');
+  
+  // CRITICAL: Set these FIRST to prevent any further interview progress
+  setIsPaused(true);
+  setInterviewStarted(false);
+  setHasInterviewStarted(false);
+  setCurrentQuestion('');
+  setIsAnalyzing(false);
+  setIsAISpeaking(false);
+  setIsLipSyncGenerating(false);
+  processingRef.current = true; // Prevent any further submissions
+  
+  // Stop all active processes
+  stopSpeaking();
+  if (isListening) stopListening();
+  
+  // Stop all analyzers
+  realVoiceAnalyzerRef.current.stopAnalysis();
+  realBehavioralAnalyzerRef.current.stopAnalysis();
+  
+  // Stop media tracks
+  if (mediaStream) {
+    mediaStream.getTracks().forEach(track => {
+      track.stop();
+      console.log(`⏹️ Stopped ${track.kind} track`);
+    });
+  }
+  
+  // Clear all intervals
+  if (answerTimerRef.current) {
+    clearInterval(answerTimerRef.current);
+    answerTimerRef.current = null;
+  }
+  
+  if (analysisIntervalRef.current) {
+    clearInterval(analysisIntervalRef.current);
+    analysisIntervalRef.current = null;
+  }
+  
+  if (lipSyncIntervalRef.current) {
+    clearInterval(lipSyncIntervalRef.current);
+    lipSyncIntervalRef.current = null;
+  }
+  
+  // Calculate final score based on actual answers
+  let finalScore = 0;
+  let totalScore = 0;
+  
+  console.log('📊 Calculating final score from:', {
+    answersCount: answers.length,
+    performanceScore,
+    questionsAsked,
+    finalTime: answerTime,
+    hasInterviewStarted
+  });
+  
+  // Calculate from answers array
+  if (answers.length > 0) {
+    answers.forEach((answer, index) => {
+      const answerScore = answer.score || 
+                         answer.contentScore || 
+                         answer.analysis?.score || 
+                         (answer.voiceMetrics?.overallScore ? answer.voiceMetrics.overallScore * 0.6 : 0) ||
+                         (answer.behavioralMetrics?.overallScore ? answer.behavioralMetrics.overallScore * 0.4 : 0) ||
+                         0;
+      
+      if (answerScore > 0) {
+        totalScore += answerScore;
+        console.log(`✅ Answer ${index + 1} score:`, answerScore);
+      }
     });
     
-    setTimeout(() => {
-      router.push('/dashboard/interview/results');
-    }, 5000);
+    if (answers.length > 0) {
+      finalScore = Math.round(totalScore / answers.length);
+    }
+  }
+  
+  // If no answers but interview was started, set a default score
+  if (finalScore === 0 && questionsAsked > 0) {
+    finalScore = 45; // Default score for attempted interview
+    console.log('📊 No answers but questions asked, using default score:', finalScore);
+  } else if (finalScore === 0 && hasInterviewStarted) {
+    finalScore = 30; // Interview started but no questions answered
+    console.log('📊 Interview started but no answers, using score:', finalScore);
+  }
+  
+  // Ensure finalScore is a number between 0-100
+  finalScore = Math.min(100, Math.max(0, Math.round(finalScore || 0)));
+  
+  // Get latest analysis data
+  const voiceData = realVoiceAnalyzerRef.current.getCurrentAnalysis();
+  const behavioralData = realBehavioralAnalyzerRef.current.getCurrentAnalysis();
+  
+  // Update performance score state with final calculated score
+  setPerformanceScore(finalScore);
+  
+  console.log('🎯 Final calculated score:', finalScore);
+  console.log('⏱️ Final time:', answerTime);
+  
+  // Create interview results object
+  const interviewResults = {
+    profile,
+    answers: answers || [],
+    finalScore,
+    performanceScore: finalScore,
+    voiceAnalysis: voiceData,
+    behavioralAnalysis: behavioralData,
+    completedAt: new Date().toISOString(),
+    totalQuestions: questionsAsked || 0,
+    assessmentType: profile?.assessmentType || 'interview',
+    fieldCategory: profile?.fieldCategory || 'general',
+    skills: profile?.skills || [],
+    subject: profile?.subject || '',
+    scenario: profile?.scenario || '',
+    focusArea: profile?.focusArea || '',
+    totalTime: answerTime || 0,
+    difficulty: profile?.difficulty || 'medium',
+    manuallyStopped: manualStop,
+    answerCount: answers.length || 0,
+    interviewPhase: hasInterviewStarted ? 'started' : 'not_started'
+  };
+  
+  // Save to localStorage (backup)
+  localStorage.setItem('interviewResults', JSON.stringify(interviewResults));
+  
+  // Try to save to database via API
+  try {
+    console.log('📤 Sending to database:', interviewResults);
+    const response = await fetch('/api/interview/results', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(interviewResults)
+    });
     
-  }, [answers, performanceScore, questionsAsked, answerTime, profile, speakWithLipSync, stopSpeaking, router]);
+    if (response.ok) {
+      const data = await response.json();
+      console.log('✅ Results saved to database:', data);
+    } else {
+      const error = await response.text();
+      console.error('❌ Failed to save to database:', error);
+    }
+  } catch (error) {
+    console.error('Error saving to database:', error);
+  }
+  
+  console.log('💾 Saved interview results:', {
+    finalScore,
+    questionsAnswered: questionsAsked,
+    answerCount: answers.length,
+    totalTime: answerTime
+  });
+  
+  // CRITICAL: Show results section
+  setInterviewCompleted(true);
+  setInterviewStage('complete');
+  processingRef.current = false;
+  
+  console.log('✅ Results section should now be visible');
+  
+}, [answers, performanceScore, questionsAsked, answerTime, profile, mediaStream, isListening, stopListening, stopSpeaking, voiceAnalysis, behavioralAnalysis, hasInterviewStarted]);
+
+// ============== STOP INTERVIEW (Manual Stop) ==============
+const stopInterview = useCallback(async () => {
+  console.log('🛑 Manually stopping interview...');
+  
+  // Immediately cancel any ongoing speech
+  if (window.speechSynthesis) {
+    window.speechSynthesis.cancel();
+  }
+  
+  // Stop listening if active
+  if (isListening) {
+    stopListening();
+  }
+  
+  // Stop speaking
+  stopSpeaking();
+  
+  // Set paused state
+  setIsPaused(true);
+  
+  // Complete the interview
+  await completeInterview(true);
+  
+}, [completeInterview, isListening, stopListening, stopSpeaking]);
+// ============== STOP INTERVIEW (Manual Stop) ==============
+
+//========== GO TO DASHBOARD ==============
+const goToDashboard = useCallback(() => {
+  router.push('/dashboard');
+}, [router]);
+
+// ============== EXIT WITHOUT SAVING ==============
+const exitInterview = useCallback(() => {
+  // Clean up before exiting
+  realVoiceAnalyzerRef.current.stopAnalysis();
+  realBehavioralAnalyzerRef.current.stopAnalysis();
+  stopSpeaking();
+  
+  if (mediaStream) {
+    mediaStream.getTracks().forEach(track => track.stop());
+  }
+  
+  if (isListening) stopListening();
+  
+  router.push('/dashboard');
+}, [mediaStream, isListening, stopListening, stopSpeaking, router]);
+
+  // ============== STOP INTERVIEW (Manual Stop) ==============
 
   // ============== ASK NEXT MAIN QUESTION ==============
   const askNextMainQuestion = useCallback(async (index: number) => {
     if (index >= mainQuestions.length) {
       console.log('✅ All main questions completed');
-      completeInterview();
+      completeInterview(false);
       return;
     }
     
@@ -1497,73 +1890,80 @@ export default function DynamicInterviewPage() {
     await speakWithLipSync(nextQuestion, 'speaking');
   }, [mainQuestions, profile, speakWithLipSync, resetAnswerState, completeInterview]);
 
-  // ============== START INTERVIEW ==============
-  const startInterview = useCallback(async () => {
-    try {
-      console.log("🚀 Starting interview...");
+ // ============== START INTERVIEW ==============
+const startInterview = useCallback(async () => {
+  try {
+    console.log("🚀 Starting interview...");
 
-      if (!profile) {
-        console.warn("No profile found.");
-        return;
-      }
+    if (!profile) {
+      console.warn("No profile found.");
+      return;
+    }
 
-      await initializeMedia();
+    // Reset all states
+    setPerformanceScore(0);
+    setCurrentPerformance(0);
+    setAnswers([]);
+    setQuestionsAsked(0);
+    setAnswerTime(0);
+    setHasInterviewStarted(false); // Reset this
+    
+    await initializeMedia();
 
-      setInterviewStarted(true);
-      setInterviewCompleted(false);
-      setCurrentQuestion("");
-      setCurrentQuestionIndex(0);
-      setIsFollowUp(false);
-      setAnswerTime(0);
-      setPerformanceScore(60);
-      setConversationHistory([]);
-      setPreviousQuestions([]);
+    setInterviewStarted(true);
+    setInterviewCompleted(false);
+    setCurrentQuestion("");
+    setCurrentQuestionIndex(0);
+    setIsFollowUp(false);
+    setConversationHistory([]);
+    setPreviousQuestions([]);
 
-      const welcomeMessage = `
+    const welcomeMessage = `
 Welcome to your ${profile.assessmentType} assessment.
 We will focus on ${profile.fieldCategory}.
 Speak clearly and confidently.
 Let's begin.
       `.trim();
 
-      await speakWithLipSync(welcomeMessage, "happy");
+    await speakWithLipSync(welcomeMessage, "happy");
 
-      const response = await fetch("/api/generate-next-question", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          profile,
-          currentPerformance: 60,
-          previousQuestions: [],
-          conversationHistory: [],
-          isFollowUp: false,
-          lastAnswer: "",
-          voiceMetrics: null,
-          behavioralMetrics: null
-        })
-      });
+    const response = await fetch("/api/generate-next-question", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        profile,
+        currentPerformance: 0,
+        previousQuestions: [],
+        conversationHistory: [],
+        isFollowUp: false,
+        lastAnswer: "",
+        voiceMetrics: null,
+        behavioralMetrics: null
+      })
+    });
 
-      const data = await response.json();
+    const data = await response.json();
 
-      if (!data?.question) {
-        throw new Error("No question returned from API");
-      }
-
-      setCurrentQuestion(data.question);
-      setPreviousQuestions([data.question]);
-
-      await speakWithLipSync(data.question, "speaking");
-
-    } catch (error) {
-      console.error("❌ Interview start failed:", error);
+    if (!data?.question) {
+      throw new Error("No question returned from API");
     }
-  }, [
-    profile,
-    speakWithLipSync,
-    initializeMedia
-  ]);
+
+    setCurrentQuestion(data.question);
+    setPreviousQuestions([data.question]);
+    setHasInterviewStarted(true); // Set this after first question is asked
+
+    await speakWithLipSync(data.question, "speaking");
+
+  } catch (error) {
+    console.error("❌ Interview start failed:", error);
+  }
+}, [
+  profile,
+  speakWithLipSync,
+  initializeMedia
+]);
 
   // ============== HANDLE SUBMIT ANSWER ==============
   const handleSubmitAnswer = useCallback(async () => {
@@ -1588,33 +1988,38 @@ Let's begin.
         voiceVolume: voiceData?.voice?.volume || 0,
         voiceConfidence: voiceData?.voice?.confidence || 0,
         voiceClarity: voiceData?.voice?.clarity || 0,
+        voiceHasValidData: voiceData?.hasValidData || false,
+        voiceIsSpeaking: voiceData?.isSpeaking || false,
         behavioralEngagement: behavioralData?.behavior?.overallEngagement || 0,
         eyeContact: behavioralData?.behavior?.eyeContact || 0,
-        answerLength: currentAnswer.length,
-        hasVoiceActivity: (voiceData?.overallScore || 0) > 15
+        behavioralHasValidData: behavioralData?.hasValidData || false,
+        behavioralFaceDetected: behavioralData?.faceDetected || false,
+        answerLength: currentAnswer.length
       });
 
       const voiceScore = voiceData?.overallScore || 0;
-      const voiceConfidence = voiceData?.voice?.confidence || 0;
       const voiceVolume = voiceData?.voice?.volume || 0;
+      const voiceHasValidData = voiceData?.hasValidData || false;
+      const isActuallySpeaking = voiceData?.isSpeaking || false;
       
+      // Check if user actually spoke (either through voice detection OR typed answer)
       const hasSpoken = 
-        (currentAnswer.trim().length > 10 && (voiceScore > 10 || voiceVolume > 10)) ||
-        (voiceScore > 25) ||
-        (voiceVolume > 30) ||
-        (voiceConfidence > 20);
+        (currentAnswer.trim().length > 15) || // Typed answer
+        (voiceHasValidData && isActuallySpeaking && voiceVolume > 5) || // Spoke with voice
+        (voiceScore > 20); // Voice score indicates speech
 
       console.log('🎤 Speech detection:', {
         hasSpoken,
         textLength: currentAnswer.trim().length,
         voiceScore,
         voiceVolume,
-        voiceConfidence
+        voiceHasValidData,
+        isActuallySpeaking
       });
 
       if (!hasSpoken) {
         await speakWithLipSync(
-          "I didn't catch your response. Please speak clearly into your microphone and try again.",
+          "I didn't catch your response. Please speak clearly into your microphone or type your answer.",
           "thinking"
         );
         
@@ -1623,7 +2028,7 @@ Let's begin.
         return;
       }
 
-      console.log('✅ Valid speech detected, analyzing with AI...');
+      console.log('✅ Valid response detected, analyzing with AI...');
 
       const analysis = await analyzeAnswerWithAI(
         questionText, 
@@ -1635,21 +2040,17 @@ Let's begin.
         behavioralData
       );
 
-      const voiceContribution = voiceData?.overallScore || 50;
-      const behavioralContribution = behavioralData?.overallScore || 50;
+      // Calculate score based on actual data
+      let blendedScore = calculateRealisticScore(currentAnswer, 50, voiceData, behavioralData);
       
-      const blendedScore = Math.round(
-        (analysis.score * 0.4) +
-        (voiceContribution * 0.3) +
-        (behavioralContribution * 0.3)
-      );
-      
+      // Update performance score based on actual answers
       const totalAnswers = answers.length + 1;
-      const newPerformanceScore = Math.round(
-        (performanceScore * (totalAnswers - 1) + blendedScore) / totalAnswers
-      );
+      const newPerformanceScore = totalAnswers === 1 
+        ? blendedScore 
+        : Math.round((performanceScore * (totalAnswers - 1) + blendedScore) / totalAnswers);
       
       setPerformanceScore(newPerformanceScore);
+      setCurrentPerformance(newPerformanceScore);
       
       const wasMainQuestion = questionSource === 'main';
       const wasFollowUp = questionSource === 'follow-up' || questionSource === 'feedback';
@@ -1663,11 +2064,14 @@ Let's begin.
         `Q: ${questionText} A: ${currentAnswer.substring(0, 100)}...`
       ]);
 
+      const voiceContribution = voiceData?.hasValidData ? (voiceData?.overallScore || 0) : 0;
+      const behavioralContribution = behavioralData?.hasValidData ? (behavioralData?.overallScore || 0) : 0;
+
       const newAnswer = {
         question: questionText,
         answer: currentAnswer,
         score: blendedScore,
-        contentScore: analysis.score,
+        contentScore: blendedScore,
         voiceScore: voiceContribution,
         behavioralScore: behavioralContribution,
         feedback: analysis.detailedFeedback,
@@ -1682,13 +2086,24 @@ Let's begin.
       
       setAnswers(prev => [...prev, newAnswer]);
       
-      setVoiceRecommendations(analysis.voiceRecommendations || voiceData?.recommendations || []);
-      setBehavioralRecommendations(analysis.behavioralRecommendations || behavioralData?.recommendations || []);
+      // Only show recommendations if we have valid data
+      if (voiceData?.hasValidData) {
+        setVoiceRecommendations(analysis.voiceRecommendations || voiceData?.recommendations || []);
+      } else {
+        setVoiceRecommendations([]);
+      }
+      
+      if (behavioralData?.hasValidData) {
+        setBehavioralRecommendations(analysis.behavioralRecommendations || behavioralData?.recommendations || []);
+      } else {
+        setBehavioralRecommendations([]);
+      }
       
       let combinedFeedback = analysis.detailedFeedback;
       
-      if (voiceData?.voice) {
-        if (voiceData.voice.volume < 30) {
+      // Add voice feedback only if valid
+      if (voiceData?.hasValidData && voiceData?.voice) {
+        if (voiceData.voice.volume < 20 && voiceData.voice.volume > 0) {
           combinedFeedback += " Your voice was quite quiet - try to speak louder for better impact.";
         } else if (voiceData.voice.volume > 80) {
           combinedFeedback += " You were speaking quite loudly - moderate your volume slightly.";
@@ -1696,34 +2111,33 @@ Let's begin.
         
         if (voiceData.voice.speechPattern === 'rushed') {
           combinedFeedback += " Try to slow down your pace a bit.";
-        } else if (voiceData.voice.speechPattern === 'hesitant') {
-          combinedFeedback += " Work on speaking with more confidence and flow.";
         }
       }
       
-      if (behavioralData?.behavior) {
-        if (behavioralData.behavior.eyeContact < 40) {
+      // Add behavioral feedback only if valid
+      if (behavioralData?.hasValidData && behavioralData?.behavior) {
+        if (behavioralData.behavior.eyeContact < 40 && behavioralData.behavior.eyeContact > 0) {
           combinedFeedback += " Try to maintain better eye contact with the camera.";
         }
         
-        if (behavioralData.behavior.smiling < 30) {
+        if (behavioralData.behavior.smiling < 30 && behavioralData.behavior.smiling > 0) {
           combinedFeedback += " A smile would make you appear more confident.";
         }
         
-        if (behavioralData.behavior.posture < 45) {
+        if (behavioralData.behavior.posture < 45 && behavioralData.behavior.posture > 0) {
           combinedFeedback += " Sit up straight for better presence.";
         }
       }
       
-      if (analysis.voiceRecommendations?.length > 0) {
+      if (analysis.voiceRecommendations?.length > 0 && voiceData?.hasValidData) {
         combinedFeedback += ` ${analysis.voiceRecommendations[0]}`;
-      } else if (voiceData?.recommendations?.length > 0) {
+      } else if (voiceData?.recommendations?.length > 0 && voiceData?.hasValidData) {
         combinedFeedback += ` ${voiceData.recommendations[0]}`;
       }
       
-      if (analysis.behavioralRecommendations?.length > 0) {
+      if (analysis.behavioralRecommendations?.length > 0 && behavioralData?.hasValidData) {
         combinedFeedback += ` ${analysis.behavioralRecommendations[0]}`;
-      } else if (behavioralData?.recommendations?.length > 0) {
+      } else if (behavioralData?.recommendations?.length > 0 && behavioralData?.hasValidData) {
         combinedFeedback += ` ${behavioralData.recommendations[0]}`;
       }
       
@@ -1750,15 +2164,15 @@ Let's begin.
       if (mainQuestionsAsked >= totalQuestions && !analysis.hasFollowUp && !analysis.needsClarification) {
         console.log('✅ All questions completed, ending interview');
         setTimeout(() => {
-          completeInterview();
+          completeInterview(false);
         }, 2000);
         return;
       }
       
       const isWeakAnswer = 
         blendedScore < 65 ||
-        voiceContribution < 55 ||
-        behavioralContribution < 50 ||
+        (voiceData?.hasValidData && voiceContribution < 40) ||
+        (behavioralData?.hasValidData && behavioralContribution < 35) ||
         currentAnswer.length < 30 ||
         analysis.needsClarification === true;
 
@@ -1830,7 +2244,7 @@ Let's begin.
           );
           
           if (nextQuestion === "COMPLETED") {
-            completeInterview();
+            completeInterview(false);
             return;
           }
           
@@ -1848,7 +2262,7 @@ Let's begin.
       else {
         console.log('🏁 No more questions available');
         setTimeout(() => {
-          completeInterview();
+          completeInterview(false);
         }, 2000);
       }
 
@@ -1878,7 +2292,7 @@ Let's begin.
           );
           
           if (fallbackQuestion === "COMPLETED") {
-            completeInterview();
+            completeInterview(false);
             return;
           }
           
@@ -1890,7 +2304,7 @@ Let's begin.
           resetAnswerState();
         } catch (e) {
           console.error('❌ Failed to generate next question:', e);
-          completeInterview();
+          completeInterview(false);
         } finally {
           setIsAnalyzing(false);
           processingRef.current = false;
@@ -2044,7 +2458,9 @@ Let's begin.
     </div>
   );
   
-  if (interviewCompleted) return (
+// At the top of your component return, BEFORE the main interview UI
+if (interviewCompleted) {
+  return (
     <div className="relative min-h-screen bg-black overflow-hidden">
       <AILabBackground />
       <motion.div 
@@ -2075,57 +2491,21 @@ Let's begin.
           </div>
           
           <div className="space-y-4 mb-8">
-            <motion.div 
-              initial={{ x: -20, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              transition={{ delay: 0.4 }}
-              className="flex justify-between items-center p-3 bg-white/5 rounded-xl border border-white/10"
-            >
+            <div className="flex justify-between items-center p-3 bg-white/5 rounded-xl border border-white/10">
               <span className="text-gray-400 flex items-center gap-2">
                 <MessageSquare className="h-4 w-4 text-blue-400" />
                 Questions Answered:
               </span>
               <span className="text-white font-bold">{questionsAsked}</span>
-            </motion.div>
+            </div>
             
-            <motion.div 
-              initial={{ x: -20, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              transition={{ delay: 0.5 }}
-              className="flex justify-between items-center p-3 bg-white/5 rounded-xl border border-white/10"
-            >
+            <div className="flex justify-between items-center p-3 bg-white/5 rounded-xl border border-white/10">
               <span className="text-gray-400 flex items-center gap-2">
                 <Clock className="h-4 w-4 text-purple-400" />
                 Time Spent:
               </span>
               <span className="text-white font-bold">{formatTime(answerTime)}</span>
-            </motion.div>
-            
-            <motion.div 
-              initial={{ x: -20, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              transition={{ delay: 0.6 }}
-              className="flex justify-between items-center p-3 bg-white/5 rounded-xl border border-white/10"
-            >
-              <span className="text-gray-400 flex items-center gap-2">
-                <Ear className="h-4 w-4 text-green-400" />
-                Voice Confidence:
-              </span>
-              <span className="text-green-400 font-bold">{voiceAnalysis?.summary?.confidence || 0}%</span>
-            </motion.div>
-            
-            <motion.div 
-              initial={{ x: -20, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              transition={{ delay: 0.7 }}
-              className="flex justify-between items-center p-3 bg-white/5 rounded-xl border border-white/10"
-            >
-              <span className="text-gray-400 flex items-center gap-2">
-                <EyeIcon className="h-4 w-4 text-cyan-400" />
-                Body Language:
-              </span>
-              <span className="text-cyan-400 font-bold">{behavioralAnalysis?.summary?.engagement || 0}%</span>
-            </motion.div>
+            </div>
           </div>
           
           <motion.button 
@@ -2134,15 +2514,16 @@ Let's begin.
             onClick={() => router.push('/dashboard')}
             className="px-8 py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-medium shadow-lg hover:shadow-xl w-full"
           >
-            View Detailed Results
+            Go to Dashboard
           </motion.button>
         </div>
       </motion.div>
     </div>
   );
+}
 
-  const voiceScore = voiceAnalysis?.overallScore || 0;
-  const behavioralScore = behavioralAnalysis?.overallScore || 0;
+  const voiceScore = voiceAnalysis?.hasValidData ? (voiceAnalysis?.overallScore || 0) : 0;
+  const behavioralScore = behavioralAnalysis?.hasValidData ? (behavioralAnalysis?.overallScore || 0) : 0;
 
   return (
     <div className="relative min-h-screen bg-black overflow-hidden">
@@ -2195,10 +2576,12 @@ Let's begin.
                   className={`text-3xl font-bold ${
                     performanceScore >= 80 ? 'text-green-400' :
                     performanceScore >= 70 ? 'text-blue-400' : 
-                    performanceScore >= 60 ? 'text-yellow-400' : 'text-red-400'
+                    performanceScore >= 60 ? 'text-yellow-400' : 
+                    performanceScore >= 40 ? 'text-orange-400' :
+                    performanceScore > 0 ? 'text-red-400' : 'text-gray-500'
                   }`}
                 >
-                  {performanceScore}%
+                  {performanceScore > 0 ? `${performanceScore}%` : '--'}
                 </motion.div>
                 <div className="text-xs text-gray-400 mt-1">Performance</div>
               </motion.div>
@@ -2234,15 +2617,28 @@ Let's begin.
                   {isAILoading ? 'Starting...' : 'Start Assessment'}
                 </motion.button>
               ) : (
-                <motion.button 
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => router.push('/dashboard')}
-                  className="flex items-center px-5 py-2.5 bg-gray-800/60 hover:bg-gray-700/60 text-white rounded-xl transition-all duration-300 border border-white/10 text-sm font-medium"
-                >
-                  <ArrowLeft className="h-4 w-4 mr-2" />
-                  Exit
-                </motion.button>
+                <>
+                  {/* Stop Button */}
+{/* Stop Button */}
+<motion.button 
+  whileHover={{ scale: 1.05 }}
+  whileTap={{ scale: 0.95 }}
+  onClick={stopInterview}
+  className="flex items-center px-5 py-2.5 bg-gradient-to-r from-red-600 to-pink-600 text-white rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl text-sm font-medium"
+>
+  <StopCircle className="h-4 w-4 mr-2" />
+  Stop
+</motion.button>
+                  <motion.button 
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => router.push('/dashboard')}
+                    className="flex items-center px-5 py-2.5 bg-gray-800/60 hover:bg-gray-700/60 text-white rounded-xl transition-all duration-300 border border-white/10 text-sm font-medium"
+                  >
+                    <ArrowLeft className="h-4 w-4 mr-2" />
+                    Exit
+                  </motion.button>
+                </>
               )}
             </div>
           </div>
@@ -2293,7 +2689,7 @@ Let's begin.
                 </div>
               </div>
               
-              {/* 3D Avatar with lip sync */}
+              {/* 3D Avatar with lip sync - REMOVED Voice/Body indicators */}
               <div className="relative h-[500px]">
                 <AvatarScene
                   ref={avatarRef}
@@ -2312,23 +2708,7 @@ Let's begin.
                   }
                 />
                 
-                {/* Status Overlay */}
-                <div className="absolute top-3 right-3 flex flex-col space-y-1.5 z-20">
-                  <motion.div 
-                    whileHover={{ scale: 1.05 }}
-                    className="bg-black/60 backdrop-blur-sm text-white text-[10px] px-2.5 py-1.5 rounded-lg border border-blue-500/30 flex items-center gap-1"
-                  >
-                    <Ear className="h-3 w-3 text-blue-400" />
-                    Voice: <span className="font-bold ml-0.5">{voiceScore}%</span>
-                  </motion.div>
-                  <motion.div 
-                    whileHover={{ scale: 1.05 }}
-                    className="bg-black/60 backdrop-blur-sm text-white text-[10px] px-2.5 py-1.5 rounded-lg border border-green-500/30 flex items-center gap-1"
-                  >
-                    <EyeIcon className="h-3 w-3 text-green-400" />
-                    Body: <span className="font-bold ml-0.5">{behavioralScore}%</span>
-                  </motion.div>
-                </div>
+                {/* Status Overlay - REMOVED Voice and Body indicators */}
               </div>
             </motion.div>
 
@@ -2537,8 +2917,8 @@ Let's begin.
                   className="absolute inset-0 w-full h-full pointer-events-none"
                 />
                 
-                {/* Analysis Metrics Overlay */}
-                {behavioralAnalysis && (
+                {/* Analysis Metrics Overlay - Only show if valid data AND camera working AND face detected */}
+                {behavioralAnalysis?.hasValidData && behavioralAnalysis?.behavior && behavioralAnalysis.faceDetected && (
                   <motion.div 
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -2698,7 +3078,7 @@ Let's begin.
                     value={currentAnswer}
                     onChange={(e) => setCurrentAnswer(e.target.value)}
                     className="w-full h-28 bg-transparent border-none outline-none resize-none text-sm text-white placeholder-gray-500"
-                    placeholder={isListening ? "Listening... Speak now" : "Your spoken response will appear here..."}
+                    placeholder={isListening ? "Listening... Speak now" : "Type your answer here or use microphone..."}
                     disabled={isAISpeaking || isLipSyncGenerating}
                   />
                   <div className="flex justify-between items-center mt-1.5">

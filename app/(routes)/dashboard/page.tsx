@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { SignedIn, UserButton } from '@clerk/nextjs';
 import { motion } from 'framer-motion';
@@ -10,7 +10,12 @@ import {
   BarChart3,
   Calendar,
   Play,
-  ArrowRight
+  ArrowRight,
+  Loader2,
+  Clock,
+  MessageSquare,
+  Eye,
+  Ear
 } from 'lucide-react';
 
 /* ==============================
@@ -77,11 +82,187 @@ function StatCard({ icon, title, value }: any) {
 }
 
 /* ==============================
+   RECENT ASSESSMENT CARD
+============================== */
+
+function RecentAssessmentCard({ assessment, index }: any) {
+  const getScoreColor = (score: number) => {
+    if (score >= 80) return 'text-green-400';
+    if (score >= 60) return 'text-yellow-400';
+    if (score >= 40) return 'text-orange-400';
+    return 'text-red-400';
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffTime = Math.abs(now.getTime() - date.getTime());
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) {
+      return 'Today';
+    } else if (diffDays === 1) {
+      return 'Yesterday';
+    } else {
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric'
+      });
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.1 }}
+      whileHover={{ scale: 1.02 }}
+      className="flex justify-between items-center bg-black/40 p-6 rounded-xl border border-white/10 hover:border-purple-500/50 transition-all cursor-pointer"
+    >
+      <div>
+        <p className="font-medium text-lg">
+          {assessment.assessmentType ? 
+            assessment.assessmentType.charAt(0).toUpperCase() + assessment.assessmentType.slice(1) : 
+            'Interview'} Assessment
+        </p>
+        <div className="flex gap-4 mt-2">
+          <p className="text-gray-400 text-sm flex items-center gap-1">
+            <MessageSquare className="h-3 w-3" />
+            {assessment.answerCount || assessment.answers?.length || 0} answers
+          </p>
+          <p className="text-gray-400 text-sm flex items-center gap-1">
+            <Clock className="h-3 w-3" />
+            {Math.floor(assessment.totalTime / 60)}m {assessment.totalTime % 60}s
+          </p>
+          <p className="text-gray-400 text-sm">
+            {formatDate(assessment.completedAt)}
+          </p>
+          {assessment.manuallyStopped && (
+            <span className="text-xs px-2 py-0.5 bg-yellow-500/20 text-yellow-400 rounded-full">
+              Manual Stop
+            </span>
+          )}
+        </div>
+        {(assessment.voiceAnalysis?.hasValidData || assessment.behavioralAnalysis?.hasValidData) && (
+          <div className="flex gap-3 mt-2">
+            {assessment.voiceAnalysis?.hasValidData && (
+              <span className="text-xs flex items-center gap-1 text-blue-400">
+                <Ear className="h-3 w-3" />
+                Voice: {assessment.voiceAnalysis.summary?.confidence || 0}%
+              </span>
+            )}
+            {assessment.behavioralAnalysis?.hasValidData && (
+              <span className="text-xs flex items-center gap-1 text-green-400">
+                <Eye className="h-3 w-3" />
+                Body: {assessment.behavioralAnalysis.summary?.engagement || 0}%
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+      <div className="text-right">
+        <p className={`text-2xl font-bold ${getScoreColor(assessment.finalScore || 0)}`}>
+          {assessment.finalScore || 0}%
+        </p>
+        <p className="text-xs text-gray-400">Score</p>
+      </div>
+    </motion.div>
+  );
+}
+
+/* ==============================
    MAIN
 ============================== */
 
 export default function Dashboard() {
   const router = useRouter();
+  const [stats, setStats] = useState({
+    averageScore: 0,
+    bestScore: 0,
+    totalAssessments: 0,
+    todayCount: 0
+  });
+  const [recentAssessments, setRecentAssessments] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+ useEffect(() => {
+  const fetchResults = async () => {
+    try {
+      // Try to fetch from API first
+      const response = await fetch('/api/interview/results?userId=guest-user&limit=10');
+      
+      if (response.ok) {
+        const results = await response.json();
+        setRecentAssessments(results);
+
+        // Calculate stats
+        if (results.length > 0) {
+          const totalScore = results.reduce((sum: number, r: any) => sum + (r.finalScore || 0), 0);
+          const avgScore = Math.round(totalScore / results.length);
+          const bestScore = Math.max(...results.map((r: any) => r.finalScore || 0));
+          
+          const today = new Date().toDateString();
+          const todayCount = results.filter((r: any) => 
+            new Date(r.completedAt).toDateString() === today
+          ).length;
+
+          setStats({
+            averageScore: avgScore,
+            bestScore: bestScore,
+            totalAssessments: results.length,
+            todayCount: todayCount
+          });
+        }
+      } else {
+        // Fallback to localStorage
+        const localResults = localStorage.getItem('interviewResults');
+        if (localResults) {
+          const parsed = JSON.parse(localResults);
+          setRecentAssessments([parsed]);
+          setStats({
+            averageScore: parsed.finalScore || 0,
+            bestScore: parsed.finalScore || 0,
+            totalAssessments: 1,
+            todayCount: 1
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching results:', error);
+      // Fallback to localStorage
+      const localResults = localStorage.getItem('interviewResults');
+      if (localResults) {
+        const parsed = JSON.parse(localResults);
+        setRecentAssessments([parsed]);
+        setStats({
+          averageScore: parsed.finalScore || 0,
+          bestScore: parsed.finalScore || 0,
+          totalAssessments: 1,
+          todayCount: 1
+        });
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchResults();
+}, []);
+
+  if (loading) {
+    return (
+      <div className="relative min-h-screen bg-black overflow-hidden">
+        <PremiumBackground />
+        <Header />
+        <div className="relative z-10 flex items-center justify-center min-h-[calc(100vh-80px)]">
+          <div className="text-center">
+            <Loader2 className="h-12 w-12 text-purple-400 animate-spin mx-auto mb-4" />
+            <p className="text-gray-400 text-lg">Loading your dashboard...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative min-h-screen text-white overflow-hidden">
@@ -110,22 +291,22 @@ export default function Dashboard() {
           <StatCard
             icon={<Target className="text-blue-400" />}
             title="Average Score"
-            value="82%"
+            value={stats.averageScore > 0 ? `${stats.averageScore}%` : '--'}
           />
           <StatCard
             icon={<Trophy className="text-yellow-400" />}
             title="Best Score"
-            value="94%"
+            value={stats.bestScore > 0 ? `${stats.bestScore}%` : '--'}
           />
           <StatCard
             icon={<BarChart3 className="text-purple-400" />}
             title="Assessments"
-            value="12"
+            value={stats.totalAssessments}
           />
           <StatCard
             icon={<Calendar className="text-green-400" />}
             title="Today"
-            value="2"
+            value={stats.todayCount}
           />
         </div>
 
@@ -135,10 +316,10 @@ export default function Dashboard() {
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => router.push('/dashboard/interview/create')}
-            className="px-12 py-5 text-lg font-bold rounded-2xl bg-gradient-to-r from-purple-600 to-blue-600 shadow-[0_0_40px_rgba(139,92,246,0.6)]"
+            className="px-12 py-5 text-lg font-bold rounded-2xl bg-gradient-to-r from-purple-600 to-blue-600 shadow-[0_0_40px_rgba(139,92,246,0.6)] hover:shadow-[0_0_60px_rgba(139,92,246,0.8)] transition-all duration-300"
           >
             <div className="flex items-center gap-3">
-              <Play />
+              <Play className="h-5 w-5" />
               Start New Assessment
             </div>
           </motion.button>
@@ -150,23 +331,58 @@ export default function Dashboard() {
             Recent Simulations
           </h3>
 
-          <div className="space-y-6">
-            {[1, 2, 3].map((item) => (
-              <motion.div
-                key={item}
-                whileHover={{ scale: 1.02 }}
-                className="flex justify-between items-center bg-black/40 p-6 rounded-xl border border-white/10"
+          {recentAssessments.length > 0 ? (
+            <div className="space-y-4">
+              {recentAssessments.slice(0, 5).map((assessment, index) => (
+                <RecentAssessmentCard 
+                  key={index} 
+                  assessment={assessment} 
+                  index={index} 
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-16">
+              <div className="w-20 h-20 rounded-full bg-purple-500/20 flex items-center justify-center mx-auto mb-4">
+                <Target className="h-10 w-10 text-purple-400" />
+              </div>
+              <h4 className="text-xl font-semibold text-white mb-2">No Assessments Yet</h4>
+              <p className="text-gray-400 mb-6">Start your first AI interview assessment to see results here</p>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => router.push('/dashboard/interview/create')}
+                className="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-medium inline-flex items-center gap-2"
               >
-                <div>
-                  <p className="font-medium text-lg">Technical Interview</p>
-                  <p className="text-gray-400 text-sm">Score: 85%</p>
-                </div>
-                <ArrowRight className="text-purple-400" />
-              </motion.div>
-            ))}
-          </div>
+                <Play className="h-4 w-4" />
+                Start Assessment
+              </motion.button>
+            </div>
+          )}
         </div>
 
+        {/* Footer Stats */}
+        {recentAssessments.length > 0 && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.5 }}
+            className="mt-8 grid grid-cols-3 gap-4 text-center"
+          >
+            <div className="p-4 bg-white/5 rounded-xl border border-white/10">
+              <p className="text-2xl font-bold text-purple-400">{stats.totalAssessments}</p>
+              <p className="text-xs text-gray-400">Total Assessments</p>
+            </div>
+            <div className="p-4 bg-white/5 rounded-xl border border-white/10">
+              <p className="text-2xl font-bold text-blue-400">{stats.averageScore}%</p>
+              <p className="text-xs text-gray-400">Average Score</p>
+            </div>
+            <div className="p-4 bg-white/5 rounded-xl border border-white/10">
+              <p className="text-2xl font-bold text-green-400">{stats.bestScore}%</p>
+              <p className="text-xs text-gray-400">Best Performance</p>
+            </div>
+          </motion.div>
+        )}
       </div>
     </div>
   );
