@@ -54,11 +54,23 @@ export class VRMAnimationManager {
   // ==========================
 
   private startBlinking() {
-    this.blinkInterval = setInterval(() => {
-      this.setExpression('blink', 1);
-      setTimeout(() => this.setExpression('blink', 0), 120);
-    }, 4000 + Math.random() * 3000);
-  }
+  const blink = () => {
+    const blinkStrength = 0.8 + Math.random() * 0.2; // slight variation
+    const blinkDuration = 80 + Math.random() * 80;   // natural blink time
+
+    this.setExpression('blink', blinkStrength);
+
+    setTimeout(() => {
+      this.setExpression('blink', 0);
+    }, blinkDuration);
+
+    // Random next blink timing (2–5 seconds)
+    const nextBlink = 2000 + Math.random() * 3000;
+    this.blinkInterval = setTimeout(blink, nextBlink);
+  };
+
+  blink();
+}
 
   // ==========================
   // HEAD MOVEMENT (CONTINUOUS)
@@ -73,8 +85,7 @@ export class VRMAnimationManager {
       if (!this.headBone || !this.neutralHeadRotation) return;
 
       time += 0.02;
-      const intensity = this.isSpeaking ? 0.03 : 0.015;
-
+      const intensity = this.isSpeaking ? 0.05 : 0.02;
       this.headBone.rotation.y =
         this.neutralHeadRotation.y + Math.sin(time) * intensity;
 
