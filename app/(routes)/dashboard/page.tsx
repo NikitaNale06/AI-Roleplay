@@ -243,6 +243,7 @@ useEffect(() => {
 
   fetchResults();
 }, []);
+
   if (loading) {
     return (
       <div className="relative min-h-screen bg-black overflow-hidden">
