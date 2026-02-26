@@ -191,25 +191,20 @@ useEffect(() => {
       setLoading(true);
       const response = await fetch('/api/interview/results?userId=guest-user&limit=10');
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('API Error:', errorData);
-        throw new Error(errorData.error || 'Failed to fetch');
-      }
-      
       const data = await response.json();
       
-      // Handle both old and new response formats
-      const allResults = data.all || data || [];
-      const recentResults = data.recent || data || [];
+      // Handle both success and error responses
+      const allResults = data.all || [];
+      const recentResults = data.recent || [];
       
       setRecentAssessments(recentResults);
 
       // Calculate stats from ALL results
       if (allResults.length > 0) {
-        const totalScore = allResults.reduce((sum: number, r: any) => sum + (r.finalScore || 0), 0);
+        const scores = allResults.map((r: any) => r.finalScore || 0);
+        const totalScore = scores.reduce((sum: number, score: number) => sum + score, 0);
         const avgScore = Math.round(totalScore / allResults.length);
-        const bestScore = Math.max(...allResults.map((r: any) => r.finalScore || 0));
+        const bestScore = Math.max(...scores);
         
         const today = new Date().toDateString();
         const todayCount = allResults.filter((r: any) => 
@@ -222,21 +217,25 @@ useEffect(() => {
           totalAssessments: allResults.length,
           todayCount: todayCount
         });
+      } else {
+        // Reset stats if no data
+        setStats({
+          averageScore: 0,
+          bestScore: 0,
+          totalAssessments: 0,
+          todayCount: 0
+        });
       }
     } catch (error) {
       console.error('Error fetching results:', error);
-      // Fallback to localStorage
-      const localResults = localStorage.getItem('interviewResults');
-      if (localResults) {
-        const parsed = JSON.parse(localResults);
-        setRecentAssessments([parsed]);
-        setStats({
-          averageScore: parsed.finalScore || 0,
-          bestScore: parsed.finalScore || 0,
-          totalAssessments: 1,
-          todayCount: 1
-        });
-      }
+      // Set empty state on error
+      setRecentAssessments([]);
+      setStats({
+        averageScore: 0,
+        bestScore: 0,
+        totalAssessments: 0,
+        todayCount: 0
+      });
     } finally {
       setLoading(false);
     }
@@ -244,7 +243,6 @@ useEffect(() => {
 
   fetchResults();
 }, []);
-
   if (loading) {
     return (
       <div className="relative min-h-screen bg-black overflow-hidden">
