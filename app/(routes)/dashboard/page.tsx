@@ -188,50 +188,40 @@ export default function Dashboard() {
 useEffect(() => {
   const fetchResults = async () => {
     try {
-      // Fetch from API
+      setLoading(true);
       const response = await fetch('/api/interview/results?userId=guest-user&limit=10');
       
-      if (response.ok) {
-        const data = await response.json();
-        
-        // data.all contains ALL assessments for stats
-        // data.recent contains last 10 for display
-        const allResults = data.all || [];
-        const recentResults = data.recent || [];
-        
-        setRecentAssessments(recentResults);
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('API Error:', errorData);
+        throw new Error(errorData.error || 'Failed to fetch');
+      }
+      
+      const data = await response.json();
+      
+      // Handle both old and new response formats
+      const allResults = data.all || data || [];
+      const recentResults = data.recent || data || [];
+      
+      setRecentAssessments(recentResults);
 
-        // Calculate stats from ALL results, not just recent
-        if (allResults.length > 0) {
-          const totalScore = allResults.reduce((sum: number, r: any) => sum + (r.finalScore || 0), 0);
-          const avgScore = Math.round(totalScore / allResults.length);
-          const bestScore = Math.max(...allResults.map((r: any) => r.finalScore || 0));
-          
-          const today = new Date().toDateString();
-          const todayCount = allResults.filter((r: any) => 
-            new Date(r.completedAt).toDateString() === today
-          ).length;
+      // Calculate stats from ALL results
+      if (allResults.length > 0) {
+        const totalScore = allResults.reduce((sum: number, r: any) => sum + (r.finalScore || 0), 0);
+        const avgScore = Math.round(totalScore / allResults.length);
+        const bestScore = Math.max(...allResults.map((r: any) => r.finalScore || 0));
+        
+        const today = new Date().toDateString();
+        const todayCount = allResults.filter((r: any) => 
+          new Date(r.completedAt).toDateString() === today
+        ).length;
 
-          setStats({
-            averageScore: avgScore,
-            bestScore: bestScore,
-            totalAssessments: allResults.length,
-            todayCount: todayCount
-          });
-        }
-      } else {
-        // Fallback to localStorage
-        const localResults = localStorage.getItem('interviewResults');
-        if (localResults) {
-          const parsed = JSON.parse(localResults);
-          setRecentAssessments([parsed]);
-          setStats({
-            averageScore: parsed.finalScore || 0,
-            bestScore: parsed.finalScore || 0,
-            totalAssessments: 1,
-            todayCount: 1
-          });
-        }
+        setStats({
+          averageScore: avgScore,
+          bestScore: bestScore,
+          totalAssessments: allResults.length,
+          todayCount: todayCount
+        });
       }
     } catch (error) {
       console.error('Error fetching results:', error);
