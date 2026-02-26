@@ -1716,57 +1716,64 @@ const toggleMicrophone = useCallback(() => {
     setCurrentEmotion(getEmotionForContext());
   }, [getEmotionForContext]);
 
-  // ============== SPEAK FUNCTION WITH MALE VOICE ==============
   const speakWithLipSync = useCallback(async (
-    text: string,
-    emotion: EmotionType = 'speaking'
-  ) => {
-    if (!avatarRef.current) return;
+  text: string,
+  emotion: EmotionType = 'speaking'
+) => {
+  // Don't speak if interview is completed
+  if (interviewCompleted) {
+    console.log('⏭️ Interview completed - not speaking');
+    return;
+  }
+  
+  if (!avatarRef.current) return;
 
-    const waitForVoices = () =>
-      new Promise<void>((resolve) => {
-        const voices = window.speechSynthesis.getVoices();
-        if (voices.length > 0) {
-          resolve();
-        } else {
-          window.speechSynthesis.onvoiceschanged = () => resolve();
-        }
-      });
+  const waitForVoices = () =>
+    new Promise<void>((resolve) => {
+      const voices = window.speechSynthesis.getVoices();
+      if (voices.length > 0) {
+        resolve();
+      } else {
+        window.speechSynthesis.onvoiceschanged = () => resolve();
+      }
+    });
 
-    await waitForVoices();
+  await waitForVoices();
 
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 0.9;
-    utterance.pitch = emotion === 'happy' ? 1.05 : 1;
-    utterance.volume = 1;
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.rate = 0.9;
+  utterance.pitch = emotion === 'happy' ? 1.05 : 1;
+  utterance.volume = 1;
 
-    const voices = window.speechSynthesis.getVoices();
+  const voices = window.speechSynthesis.getVoices();
 
-    const preferredVoice =
-      voices.find(v => v.name.includes('Microsoft David')) ||
-      voices.find(v => v.lang === 'en-US') ||
-      voices[0];
+  const preferredVoice =
+    voices.find(v => v.name.includes('Microsoft David')) ||
+    voices.find(v => v.lang === 'en-US') ||
+    voices[0];
 
-    if (preferredVoice) {
-      utterance.voice = preferredVoice;
-    }
+  if (preferredVoice) {
+    utterance.voice = preferredVoice;
+  }
 
-    setIsAISpeaking(true);
-    setAvatarText(text);
+  setIsAISpeaking(true);
+  setAvatarText(text);
 
-    try {
-      await avatarRef.current.speak(text, utterance, emotion);
-    } catch (e) {
-      console.error("Speech failed:", e);
-    }
+  try {
+    await avatarRef.current.speak(text, utterance, emotion);
+  } catch (e) {
+    console.error("Speech failed:", e);
+  }
 
-    setIsAISpeaking(false);
-    setCurrentEmotion('listening');
-    setAvatarText('');
+  setIsAISpeaking(false);
+  setCurrentEmotion('listening');
+  setAvatarText('');
 
-  }, [avatarRef]);
+}, [avatarRef, interviewCompleted]); // Add interviewCompleted to dependencies
+  
 
-  const stopSpeaking = useCallback(() => {
+
+const stopSpeaking = useCallback(() => {
     if (window.speechSynthesis?.speaking) {
       window.speechSynthesis.cancel();
     }
@@ -1989,8 +1996,19 @@ const completeInterview = useCallback(async (manualStop = false) => {
   
 }, [answers, performanceScore, questionsAsked, answerTime, profile, mediaStream, isListening, stopListening, stopSpeaking, voiceAnalysis, behavioralAnalysis, hasInterviewStarted]);
 // ============== STOP INTERVIEW (Manual Stop) ==============
+// ============== STOP INTERVIEW (Manual Stop) ==============
 const stopInterview = useCallback(async () => {
   console.log('🛑 Manually stopping interview...');
+  
+  // CRITICAL: Set these FIRST to prevent any further progress
+  setIsPaused(true);
+  setInterviewStarted(false);
+  setHasInterviewStarted(false);
+  setCurrentQuestion(''); // Clear the current question
+  setIsAnalyzing(false);
+  setIsAISpeaking(false);
+  setIsLipSyncGenerating(false);
+  processingRef.current = true; // Prevent any further submissions
   
   // Immediately cancel any ongoing speech
   if (window.speechSynthesis) {
@@ -2005,20 +2023,44 @@ const stopInterview = useCallback(async () => {
   // Stop speaking
   stopSpeaking();
   
-  // Set paused state
-  setIsPaused(true);
-  
   // Stop all analyzers immediately
   realVoiceAnalyzerRef.current.stopAnalysis();
   realBehavioralAnalyzerRef.current.stopAnalysis();
   
-  // Calculate final score and prepare results
-  const finalScore = performanceScore > 0 ? performanceScore : 45;
-  const attemptedQuestions = questionsAsked > 0 ? questionsAsked : answers.length;
+  // Check if any questions were actually answered
+  const hasAnswers = answers.length > 0;
+  const attemptedCount = questionsAsked > 0 ? questionsAsked : answers.length;
+  
+  // Calculate final score - ONLY if there are answers
+  let finalScore = 0;
+  if (hasAnswers) {
+    // Calculate from answers array
+    let totalScore = 0;
+    answers.forEach((answer, index) => {
+      const answerScore = answer.score || 
+                         answer.contentScore || 
+                         answer.analysis?.score || 
+                         (answer.voiceMetrics?.overallScore ? answer.voiceMetrics.overallScore * 0.6 : 0) ||
+                         (answer.behavioralMetrics?.overallScore ? answer.behavioralMetrics.overallScore * 0.4 : 0) ||
+                         0;
+      
+      if (answerScore > 0) {
+        totalScore += answerScore;
+      }
+    });
+    
+    if (answers.length > 0) {
+      finalScore = Math.round(totalScore / answers.length);
+    }
+  } else {
+    // No answers were given - score should be 0
+    finalScore = 0;
+    console.log('📊 No answers provided - score set to 0');
+  }
   
   // Update states for results
   setPerformanceScore(finalScore);
-  setQuestionsAsked(attemptedQuestions);
+  setQuestionsAsked(attemptedCount);
   
   // Generate improvement tips based on score
   let improvementMessage = "";
@@ -2028,36 +2070,61 @@ const stopInterview = useCallback(async () => {
     improvementMessage = "Good job! You have solid communication skills. Focus on providing more specific examples and maintaining better eye contact.";
   } else if (finalScore >= 40) {
     improvementMessage = "You're on the right track. Work on structuring your answers better and reducing filler words. Practice more to build confidence.";
-  } else {
+  } else if (finalScore > 0) {
     improvementMessage = "Keep practicing! Focus on speaking clearly, maintaining eye contact, and providing detailed answers. Every practice session helps you improve.";
+  } else {
+    improvementMessage = "You didn't attempt any questions this time. Don't worry! Next time, try to answer at least a few questions to get personalized feedback. Every practice session helps you improve!";
   }
   
   // Save improvement message for results
   localStorage.setItem('improvementTips', improvementMessage);
   
-  // Show results section
+  // Stop media tracks
+  if (mediaStream) {
+    mediaStream.getTracks().forEach(track => {
+      track.stop();
+      console.log(`⏹️ Stopped ${track.kind} track`);
+    });
+  }
+  
+  // Clear all intervals
+  if (answerTimerRef.current) {
+    clearInterval(answerTimerRef.current);
+    answerTimerRef.current = null;
+  }
+  
+  if (analysisIntervalRef.current) {
+    clearInterval(analysisIntervalRef.current);
+    analysisIntervalRef.current = null;
+  }
+  
+  if (lipSyncIntervalRef.current) {
+    clearInterval(lipSyncIntervalRef.current);
+    lipSyncIntervalRef.current = null;
+  }
+  
+  // Show results section FIRST
   setInterviewCompleted(true);
   setInterviewStage('complete');
   
-  // Stop media tracks after a small delay
+  // Small delay to ensure UI updates before speaking
   setTimeout(() => {
-    if (mediaStream) {
-      mediaStream.getTracks().forEach(track => {
-        track.stop();
-        console.log(`⏹️ Stopped ${track.kind} track`);
-      });
+    // Speak congratulatory message
+    let message = "";
+    if (finalScore > 0) {
+      message = `Congratulations! Your score is ${finalScore} percent. You attempted ${attemptedCount} questions. ${improvementMessage} Best of luck for next time!`;
+    } else {
+      message = `You didn't attempt any questions this time. ${improvementMessage} Best of luck for next time!`;
     }
+    
+    // Speak the message
+    speakWithLipSync(message, 'happy').then(() => {
+      console.log('✅ Final message spoken, interview complete');
+      processingRef.current = false;
+    });
   }, 500);
   
-  // Speak congratulatory message
-  setTimeout(async () => {
-    const message = `Congratulations! Your score is ${finalScore} percent. You attempted ${attemptedQuestions} questions. ${improvementMessage} Best of luck for next time!`;
-    await speakWithLipSync(message, 'happy');
-  }, 1000);
-  
-}, [performanceScore, questionsAsked, answers.length, isListening, stopListening, stopSpeaking, mediaStream]);
-// ============== STOP INTERVIEW (Manual Stop) ==============
-
+}, [answers, performanceScore, questionsAsked, isListening, stopListening, stopSpeaking, mediaStream, speakWithLipSync]);
 //========== GO TO DASHBOARD ==============
 const goToDashboard = useCallback(() => {
   router.push('/dashboard');
@@ -2676,11 +2743,14 @@ Let's begin.
   );
   
 // At the top of your component return, BEFORE the main interview UI
+// At the top of your component return, BEFORE the main interview UI
 if (interviewCompleted) {
   // Get improvement tips from localStorage
   const improvementTips = typeof window !== 'undefined' 
     ? localStorage.getItem('improvementTips') 
     : "Keep practicing to improve your skills!";
+  
+  const hasScore = performanceScore > 0;
   
   return (
     <div className="relative min-h-screen bg-black overflow-hidden">
@@ -2700,20 +2770,33 @@ if (interviewCompleted) {
             <Trophy className="h-12 w-12 text-white" />
           </motion.div>
           
-          <h2 className="text-4xl font-bold text-white mb-2">Assessment Complete!</h2>
-          <p className="text-gray-400 mb-6">Congratulations on completing your interview practice!</p>
+          <h2 className="text-4xl font-bold text-white mb-2">
+            {hasScore ? 'Assessment Complete!' : 'Practice Session Ended'}
+          </h2>
+          <p className="text-gray-400 mb-6">
+            {hasScore 
+              ? 'Congratulations on completing your interview practice!' 
+              : 'You ended the session without answering any questions.'}
+          </p>
           
-          <div className="mb-8">
-            <motion.div 
-              initial={{ scale: 0.5 }}
-              animate={{ scale: 1 }}
-              transition={{ delay: 0.3 }}
-              className="text-7xl font-bold bg-gradient-to-r from-green-400 to-emerald-300 bg-clip-text text-transparent mb-2"
-            >
-              {performanceScore}%
-            </motion.div>
-            <p className="text-gray-400">Overall Performance Score</p>
-          </div>
+          {hasScore ? (
+            <div className="mb-8">
+              <motion.div 
+                initial={{ scale: 0.5 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: 0.3 }}
+                className="text-7xl font-bold bg-gradient-to-r from-green-400 to-emerald-300 bg-clip-text text-transparent mb-2"
+              >
+                {performanceScore}%
+              </motion.div>
+              <p className="text-gray-400">Overall Performance Score</p>
+            </div>
+          ) : (
+            <div className="mb-8">
+              <div className="text-7xl font-bold text-gray-500 mb-2">—</div>
+              <p className="text-gray-400">No score available</p>
+            </div>
+          )}
           
           <div className="grid grid-cols-2 gap-4 mb-8">
             <div className="bg-white/5 p-4 rounded-xl border border-white/10">
@@ -2736,7 +2819,7 @@ if (interviewCompleted) {
               Improvement Tips
             </h3>
             <p className="text-gray-300 text-sm leading-relaxed">
-              {improvementTips || "Keep practicing to improve your communication skills!"}
+              {improvementTips}
             </p>
           </div>
           
@@ -2753,7 +2836,6 @@ if (interviewCompleted) {
     </div>
   );
 }
-
   const voiceScore = voiceAnalysis?.hasValidData ? (voiceAnalysis?.overallScore || 0) : 0;
   const behavioralScore = behavioralAnalysis?.hasValidData ? (behavioralAnalysis?.overallScore || 0) : 0;
 
