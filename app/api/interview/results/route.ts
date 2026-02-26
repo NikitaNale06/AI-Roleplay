@@ -2,20 +2,17 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
-import { PrismaClient } from '@prisma/client';
-
-// Initialize Prisma with error handling
-const prisma = new PrismaClient();
+import { prisma } from "@/lib/prisma";
 
 // ================= POST =================
 export async function POST(req: Request) {
   console.log("📥 POST /api/interview/results - Started");
-  
+
   try {
     const body = await req.json();
     console.log("📦 POST Body received keys:", Object.keys(body));
 
-    // Validate required fields
+    // Validate required field
     if (body.finalScore === undefined && body.finalScore !== 0) {
       return NextResponse.json(
         { error: "finalScore is required" },
@@ -23,149 +20,111 @@ export async function POST(req: Request) {
       );
     }
 
-    // Test database connection
-    try {
-      await prisma.$connect();
-      console.log("✅ Database connected");
-    } catch (connError) {
-      console.error("❌ Database connection failed:", connError);
-      return NextResponse.json(
-        { error: "Database connection failed" },
-        { status: 500 }
-      );
-    }
-
-    // Prepare data - match schema exactly
     const data: any = {
       userId: body.userId || "guest-user",
       finalScore: Number(body.finalScore) || 0,
-      answers: typeof body.answers === 'string' ? body.answers : JSON.stringify(body.answers || []),
+      answers:
+        typeof body.answers === "string"
+          ? body.answers
+          : JSON.stringify(body.answers || []),
       totalTime: Number(body.totalTime) || 0,
       questionsAsked: Number(body.questionsAsked) || 0,
     };
 
-    // Add optional fields only if they exist
+    // Optional fields
     if (body.assessmentType) data.assessmentType = body.assessmentType;
     if (body.fieldCategory) data.fieldCategory = body.fieldCategory;
     if (body.feedback) data.feedback = body.feedback;
-    
-    // Handle voiceAnalysis (stringify if object)
+
     if (body.voiceAnalysis) {
-      data.voiceAnalysis = typeof body.voiceAnalysis === 'string' 
-        ? body.voiceAnalysis 
-        : JSON.stringify(body.voiceAnalysis);
+      data.voiceAnalysis =
+        typeof body.voiceAnalysis === "string"
+          ? body.voiceAnalysis
+          : JSON.stringify(body.voiceAnalysis);
     }
-    
-    // Handle behavioralAnalysis (stringify if object)
+
     if (body.behavioralAnalysis) {
-      data.behavioralAnalysis = typeof body.behavioralAnalysis === 'string' 
-        ? body.behavioralAnalysis 
-        : JSON.stringify(body.behavioralAnalysis);
+      data.behavioralAnalysis =
+        typeof body.behavioralAnalysis === "string"
+          ? body.behavioralAnalysis
+          : JSON.stringify(body.behavioralAnalysis);
     }
 
-    console.log("📦 Saving to database:", Object.keys(data));
+    console.log("📦 Saving to database...");
 
-    // Create the record
     const result = await prisma.interviewResult.create({
-      data: data,
+      data,
     });
 
     console.log("✅ POST successful - ID:", result.id);
     return NextResponse.json(result);
-    
   } catch (error: any) {
-    console.error("🔥 POST ERROR:", {
-      message: error.message,
-      stack: error.stack,
-      code: error.code
-    });
-    
+    console.error("🔥 POST ERROR:", error);
+
     return NextResponse.json(
-      { 
-        error: error?.message || "Unknown database error",
-        code: error?.code || "UNKNOWN"
+      {
+        error: error?.message || "Failed to save interview result",
+        code: error?.code || "UNKNOWN",
       },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect().catch(e => console.error("Disconnect error:", e));
   }
 }
 
 // ================= GET =================
 export async function GET(req: Request) {
   console.log("📥 GET /api/interview/results - Started");
-  
+
   try {
     const url = new URL(req.url);
-    const limit = url.searchParams.get("limit");
+    const limitParam = url.searchParams.get("limit");
     const userId = url.searchParams.get("userId") || "guest-user";
 
-    console.log(`📋 Params - userId: ${userId}, limit: ${limit || 'all'}`);
+    const limit = limitParam ? parseInt(limitParam) : undefined;
 
-    // Test database connection
-    try {
-      await prisma.$connect();
-      console.log("✅ Database connected");
-    } catch (connError) {
-      console.error("❌ Database connection failed:", connError);
-      return NextResponse.json(
-        { error: "Database connection failed" },
-        { status: 500 }
-      );
-    }
+    console.log(`📋 Params - userId: ${userId}, limit: ${limit || "all"}`);
 
-    // Check if table exists and has data
-    const totalCount = await prisma.interviewResult.count();
-    console.log(`📊 Total records in database: ${totalCount}`);
-
-    // Get ALL results for stats calculation
-    const allResults = await prisma.interviewResult.findMany({
+    // Fetch results
+    const results = await prisma.interviewResult.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
+      take: limit,
     });
 
-    console.log(`✅ Found ${allResults.length} total results for user ${userId}`);
+    console.log(`✅ Found ${results.length} results`);
 
-    // Parse JSON fields for easier consumption
-    const parsedAllResults = allResults.map(result => ({
+    // Safe JSON parsing
+    const parsedResults = results.map((result) => ({
       ...result,
-      answers: result.answers ? JSON.parse(result.answers) : [],
-      voiceAnalysis: result.voiceAnalysis ? JSON.parse(result.voiceAnalysis) : null,
-      behavioralAnalysis: result.behavioralAnalysis ? JSON.parse(result.behavioralAnalysis) : null,
+      answers: safeParse(result.answers),
+      voiceAnalysis: safeParse(result.voiceAnalysis),
+      behavioralAnalysis: safeParse(result.behavioralAnalysis),
     }));
 
-    // Get limited results for display (if limit specified)
-    let recentResults = parsedAllResults;
-    if (limit) {
-      recentResults = parsedAllResults.slice(0, parseInt(limit));
-      console.log(`✅ Returning ${recentResults.length} recent results`);
-    }
-
-    const response = {
-      all: parsedAllResults,
-      recent: recentResults
-    };
-
-    return NextResponse.json(response);
-    
-  } catch (error: any) {
-    console.error("❌ GET ERROR:", {
-      message: error.message,
-      stack: error.stack,
-      code: error.code
+    return NextResponse.json({
+      all: parsedResults,
+      recent: parsedResults,
     });
-    
-    // Return empty arrays on error so frontend doesn't break
+  } catch (error: any) {
+    console.error("❌ GET ERROR:", error);
+
     return NextResponse.json(
-      { 
+      {
         error: error?.message || "Failed to fetch interview results",
         all: [],
-        recent: []
+        recent: [],
       },
-      { status: 200 } // Return 200 with empty data instead of 500
+      { status: 200 } // prevent frontend crash
     );
-  } finally {
-    await prisma.$disconnect().catch(e => console.error("Disconnect error:", e));
+  }
+}
+
+// ================= HELPER =================
+function safeParse(value: string | null) {
+  if (!value) return null;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
   }
 }
