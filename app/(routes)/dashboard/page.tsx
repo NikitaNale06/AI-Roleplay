@@ -185,31 +185,37 @@ export default function Dashboard() {
   const [recentAssessments, setRecentAssessments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
- useEffect(() => {
+useEffect(() => {
   const fetchResults = async () => {
     try {
-      // Try to fetch from API first
+      // Fetch from API
       const response = await fetch('/api/interview/results?userId=guest-user&limit=10');
       
       if (response.ok) {
-        const results = await response.json();
-        setRecentAssessments(results);
+        const data = await response.json();
+        
+        // data.all contains ALL assessments for stats
+        // data.recent contains last 10 for display
+        const allResults = data.all || [];
+        const recentResults = data.recent || [];
+        
+        setRecentAssessments(recentResults);
 
-        // Calculate stats
-        if (results.length > 0) {
-          const totalScore = results.reduce((sum: number, r: any) => sum + (r.finalScore || 0), 0);
-          const avgScore = Math.round(totalScore / results.length);
-          const bestScore = Math.max(...results.map((r: any) => r.finalScore || 0));
+        // Calculate stats from ALL results, not just recent
+        if (allResults.length > 0) {
+          const totalScore = allResults.reduce((sum: number, r: any) => sum + (r.finalScore || 0), 0);
+          const avgScore = Math.round(totalScore / allResults.length);
+          const bestScore = Math.max(...allResults.map((r: any) => r.finalScore || 0));
           
           const today = new Date().toDateString();
-          const todayCount = results.filter((r: any) => 
+          const todayCount = allResults.filter((r: any) => 
             new Date(r.completedAt).toDateString() === today
           ).length;
 
           setStats({
             averageScore: avgScore,
             bestScore: bestScore,
-            totalAssessments: results.length,
+            totalAssessments: allResults.length,
             todayCount: todayCount
           });
         }
@@ -333,7 +339,7 @@ export default function Dashboard() {
 
           {recentAssessments.length > 0 ? (
             <div className="space-y-4">
-              {recentAssessments.slice(0, 5).map((assessment, index) => (
+              {recentAssessments.slice(0, 10).map((assessment, index) => (
                 <RecentAssessmentCard 
                   key={index} 
                   assessment={assessment} 
