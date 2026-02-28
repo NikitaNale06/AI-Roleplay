@@ -2974,7 +2974,7 @@ if (interviewCompleted) {
                     <div className="p-1.5 bg-purple-500/20 rounded-lg">
                       <Users className="h-4 w-4 text-purple-400" />
                     </div>
-                    <span className="text-white font-medium text-sm">AI Interviewer</span>
+                    <span className="text-white font-medium text-xl">Mr. Sakht</span>
                   </div>
                   <div className="flex items-center space-x-2">
                     <motion.div 
