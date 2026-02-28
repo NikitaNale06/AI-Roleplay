@@ -264,6 +264,21 @@ useEffect(() => {
       <PremiumBackground />
       <Header />
 
+      {/* Back to Assessment Button - Added in top right corner */}
+      <motion.button
+        initial={{ opacity: 0, scale: 0.8 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ delay: 1 }}
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        onClick={() => router.push('/dashboard/interview/create')}
+        className="fixed top-24 right-8 z-50 px-5 py-3 bg-gradient-to-r from-purple-600 to-blue-600 rounded-xl shadow-[0_0_20px_rgba(139,92,246,0.4)] hover:shadow-[0_0_30px_rgba(139,92,246,0.6)] transition-all duration-300 flex items-center gap-2 group border border-white/10 backdrop-blur-sm"
+      >
+        <Play className="h-4 w-4" />
+        <span className="font-medium">Back to Assessment</span>
+        <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+      </motion.button>
+
       <div className="relative z-10 max-w-7xl mx-auto px-8 py-14">
 
         {/* Hero Section */}

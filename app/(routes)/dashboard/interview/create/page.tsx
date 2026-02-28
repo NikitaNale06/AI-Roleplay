@@ -199,6 +199,55 @@ const assessmentTypes = [
   }
 ];
 
+// Dynamic skills mapping based on assessment type
+const skillsByAssessmentType: Record<string, string[]> = {
+  'technical': [
+    'JavaScript/TypeScript', 'Python', 'Java', 'C++', 'React', 'Node.js',
+    'System Design', 'Algorithms', 'Data Structures', 'Cloud Computing',
+    'Database Management', 'API Design', 'DevOps', 'Cybersecurity',
+    'Machine Learning', 'Software Architecture', 'Testing', 'Git/GitHub'
+  ],
+  'academic-viva': [
+    'Research Methodology', 'Thesis Writing', 'Literature Review', 'Data Analysis',
+    'Statistical Methods', 'Academic Writing', 'Critical Analysis', 'Citation Management',
+    'Research Ethics', 'Presentation Skills', 'Peer Review', 'Grant Writing',
+    'Experimental Design', 'Qualitative Research', 'Quantitative Research'
+  ],
+  'communication-test': [
+    'Public Speaking', 'Active Listening', 'Body Language', 'Voice Modulation',
+    'Storytelling', 'Persuasion', 'Negotiation', 'Conflict Resolution',
+    'Presentation Skills', 'Interpersonal Communication', 'Emotional Intelligence',
+    'Non-verbal Communication', 'Audience Engagement', 'Speech Clarity'
+  ],
+  'behavioral': [
+    'Leadership', 'Teamwork', 'Adaptability', 'Problem Solving',
+    'Conflict Management', 'Emotional Intelligence', 'Decision Making',
+    'Time Management', 'Stress Management', 'Empathy', 'Collaboration',
+    'Initiative', 'Accountability', 'Mentoring', 'Cultural Awareness'
+  ],
+  'domain-specific': [
+    'Industry Knowledge', 'Regulatory Compliance', 'Market Analysis', 'Risk Management',
+    'Strategic Planning', 'Business Acumen', 'Domain Expertise', 'Trend Analysis',
+    'Stakeholder Management', 'Quality Assurance', 'Process Optimization',
+    'Industry Standards', 'Best Practices', 'Innovation Management'
+  ],
+  'conceptual': [
+    'Critical Thinking', 'Abstract Reasoning', 'Conceptual Modeling', 'Theory Analysis',
+    'Logical Reasoning', 'Systems Thinking', 'Pattern Recognition', 'Synthesis',
+    'Evaluation', 'Hypothesis Generation', 'Framework Development', 'Paradigm Analysis'
+  ],
+  'confidence-building': [
+    'Self-confidence', 'Assertiveness', 'Positive Mindset', 'Resilience',
+    'Overcoming Anxiety', 'Self-motivation', 'Growth Mindset', 'Self-awareness',
+    'Stress Resilience', 'Emotional Regulation', 'Self-efficacy', 'Optimism'
+  ],
+  'general-practice': [
+    'Small Talk', 'Conversation Flow', 'Active Engagement', 'Questioning Skills',
+    'Empathy', 'Social Awareness', 'Relationship Building', 'Networking',
+    'Casual Communication', 'Everyday Etiquette', 'Social Cues', 'Friendliness'
+  ]
+};
+
 // Main component that uses useSearchParams
 function CreateInterviewContent() {
   const router = useRouter();
@@ -232,6 +281,20 @@ function CreateInterviewContent() {
 
   // Get current assessment type info
   const currentType = assessmentTypes.find(type => type.id === activeTab) || assessmentTypes[0];
+
+  // Get dynamic skills for current assessment type
+  const getDynamicSkills = () => {
+    return skillsByAssessmentType[activeTab] || skillsByAssessmentType['general-practice'];
+  };
+
+  // Filter skills based on search
+  const getFilteredSkills = () => {
+    const allSkills = getDynamicSkills();
+    if (!searchSkill) return allSkills;
+    return allSkills.filter(skill => 
+      skill.toLowerCase().includes(searchSkill.toLowerCase())
+    );
+  };
 
   // Handle tab selection with modal
   const handleTabSelect = (tabId: string) => {
@@ -650,24 +713,34 @@ function CreateInterviewContent() {
     switch (activeTab) {
       case 'academic-viva':
         return formData.subject 
-          ? `Skills for ${formData.subject}`
-          : 'Select a subject to see specific skills';
+          ? `Academic skills for ${formData.subject}`
+          : 'Academic research & presentation skills';
       case 'domain-specific':
         return formData.scenario
-          ? `Skills for ${formData.scenario} domain`
-          : 'Select a domain/scenario to see specific skills';
+          ? `Domain skills for ${formData.scenario}`
+          : 'Industry-specific expertise';
       case 'technical':
         return formData.subject
           ? `Technical skills for ${formData.subject}`
-          : 'Select a technical field to see specific skills';
+          : 'Programming & technical abilities';
       case 'conceptual':
         return formData.focusArea
           ? `Conceptual skills for ${formData.focusArea}`
-          : 'Select a focus area to see specific skills';
+          : 'Critical thinking & analysis';
+      case 'communication-test':
+        return 'Verbal & non-verbal communication skills';
+      case 'behavioral':
+        return 'Soft skills & interpersonal abilities';
+      case 'confidence-building':
+        return 'Self-confidence & assertiveness skills';
+      case 'general-practice':
+        return 'Everyday conversation & social skills';
       default:
         return `${currentType.name} Skills`;
     }
   };
+
+  const filteredSkills = getFilteredSkills();
 
   return (
     <div className="relative min-h-screen text-white overflow-hidden">
@@ -905,8 +978,23 @@ function CreateInterviewContent() {
                   </motion.div>
                 )}
 
-                {/* Assessment Info Bar - Simplified */}
-                
+                {/* Title Field */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Assessment Title <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.title}
+                    onChange={(e) => handleTitleChange(e.target.value)}
+                    className="w-full px-4 py-3 bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-white placeholder-gray-500"
+                    placeholder={`Enter title for your ${currentType.name}...`}
+                    disabled={isGenerating}
+                  />
+                  {formErrors.title && (
+                    <p className="mt-1 text-xs text-red-400">{formErrors.title}</p>
+                  )}
+                </div>
 
                 {/* Subject/Scenario/Focus Area Fields */}
                 {(activeTab === 'academic-viva' || activeTab === 'technical' || activeTab === 'domain-specific' || activeTab === 'conceptual') && (
@@ -989,9 +1077,6 @@ function CreateInterviewContent() {
                   </div>
                 )}
 
-                {/* Title - Only remaining field */}
-                
-
                 {/* Dynamic Skills Section */}
                 <div>
                   <div className="flex items-center justify-between mb-4">
@@ -1011,16 +1096,14 @@ function CreateInterviewContent() {
                       value={searchSkill}
                       onChange={(e) => setSearchSkill(e.target.value)}
                       className="w-full pl-10 pr-4 py-3 bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-white placeholder-gray-500"
-                      placeholder="Search skills..."
+                      placeholder={`Search ${currentType.name} skills...`}
                       disabled={isGenerating}
                     />
                   </div>
 
-                  {/* Skills Grid */}
+                  {/* Dynamic Skills Grid */}
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4 max-h-48 overflow-y-auto p-2">
-                    {['Critical Thinking', 'Problem Solving', 'Communication', 'Research Skills', 
-                      'Time Management', 'Adaptability', 'Teamwork', 'Leadership',
-                      'Technical Writing', 'Data Analysis', 'Project Management', 'Creativity'].map((skill) => (
+                    {filteredSkills.map((skill) => (
                       <motion.button
                         key={skill}
                         whileHover={{ scale: 1.02 }}
