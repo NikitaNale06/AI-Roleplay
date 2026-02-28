@@ -1367,6 +1367,79 @@ const generateEnhancedFallbackQuestion = (
   return selectedQuestion;
 };
 
+// ============== ENHANCED RESULTS HELPER FUNCTIONS ==============
+const getPerformanceLevel = (score: number) => {
+  if (score >= 80) return {
+    label: 'EXCELLENT',
+    color: 'from-green-500 to-emerald-500',
+    textColor: 'text-green-400',
+    bgColor: 'bg-green-500/20',
+    borderColor: 'border-green-500/30',
+    icon: Trophy,
+    message: 'Outstanding performance! You demonstrated exceptional communication skills.',
+    badge: 'Top Performer'
+  };
+  if (score >= 70) return {
+    label: 'GOOD',
+    color: 'from-blue-500 to-cyan-500',
+    textColor: 'text-blue-400',
+    bgColor: 'bg-blue-500/20',
+    borderColor: 'border-blue-500/30',
+    icon: Medal,
+    message: 'Good job! You have solid communication skills with room to excel.',
+    badge: 'Proficient'
+  };
+  if (score >= 60) return {
+    label: 'AVERAGE',
+    color: 'from-yellow-500 to-amber-500',
+    textColor: 'text-yellow-400',
+    bgColor: 'bg-yellow-500/20',
+    borderColor: 'border-yellow-500/30',
+    icon: Star,
+    message: 'You\'re on the right track. Keep practicing to improve further.',
+    badge: 'Developing'
+  };
+  if (score >= 50) return {
+    label: 'NEEDS IMPROVEMENT',
+    color: 'from-orange-500 to-red-500',
+    textColor: 'text-orange-400',
+    bgColor: 'bg-orange-500/20',
+    borderColor: 'border-orange-500/30',
+    icon: AlertCircle,
+    message: 'You have potential but need more practice in key areas.',
+    badge: 'Beginner'
+  };
+  return {
+    label: 'FAILED',
+    color: 'from-red-600 to-pink-600',
+    textColor: 'text-red-400',
+    bgColor: 'bg-red-500/20',
+    borderColor: 'border-red-500/30',
+    icon: AlertTriangle,
+    message: 'This assessment needs more preparation. Focus on the fundamentals.',
+    badge: 'Needs Work'
+  };
+};
+
+const getPassStatus = (score: number) => {
+  if (score >= 60) return {
+    passed: true,
+    text: 'PASSED',
+    color: 'text-green-400',
+    bgColor: 'bg-green-500/20',
+    borderColor: 'border-green-500/30',
+    icon: CheckCircle
+  };
+  return {
+    passed: false,
+    text: 'FAILED',
+    color: 'text-red-400',
+    bgColor: 'bg-red-500/20',
+    borderColor: 'border-red-500/30',
+    icon: AlertTriangle
+  };
+};
+
 // Main Component
 export default function DynamicInterviewPage() {
   const router = useRouter();
@@ -2751,6 +2824,10 @@ if (interviewCompleted) {
     : "Keep practicing to improve your skills!";
   
   const hasScore = performanceScore > 0;
+  const level = getPerformanceLevel(performanceScore);
+  const passStatus = getPassStatus(performanceScore);
+  const LevelIcon = level.icon;
+  const PassIcon = passStatus.icon;
   
   return (
     <div className="relative min-h-screen bg-black overflow-hidden">
@@ -2760,37 +2837,93 @@ if (interviewCompleted) {
         animate={{ opacity: 1, scale: 1 }}
         className="relative z-10 flex items-center justify-center min-h-screen p-4"
       >
-        <div className="bg-gray-900/90 backdrop-blur-xl border border-green-500/30 p-8 rounded-3xl shadow-[0_0_50px_rgba(34,197,94,0.3)] max-w-2xl w-full text-center">
+        <div className={`bg-gray-900/90 backdrop-blur-xl border ${level.borderColor} p-8 rounded-3xl shadow-[0_0_50px_rgba(34,197,94,0.3)] max-w-2xl w-full text-center`}>
+          
+          {/* Animated Trophy/Icon */}
           <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1, rotate: 360 }}
+            initial={{ scale: 0, rotate: -180 }}
+            animate={{ scale: 1, rotate: 0 }}
             transition={{ type: "spring", stiffness: 200, damping: 10 }}
-            className="w-24 h-24 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 flex items-center justify-center mx-auto mb-6"
+            className={`w-24 h-24 rounded-full bg-gradient-to-r ${level.color} flex items-center justify-center mx-auto mb-6 shadow-lg`}
           >
-            <Trophy className="h-12 w-12 text-white" />
+            <LevelIcon className="h-12 w-12 text-white" />
+          </motion.div>
+          
+          {/* Performance Level Badge */}
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.2 }}
+            className={`inline-block px-4 py-1 rounded-full ${level.bgColor} border ${level.borderColor} mb-4`}
+          >
+            <span className={`text-sm font-bold ${level.textColor}`}>{level.badge}</span>
           </motion.div>
           
           <h2 className="text-4xl font-bold text-white mb-2">
             {hasScore ? 'Assessment Complete!' : 'Practice Session Ended'}
           </h2>
+          
+          {/* Pass/Fail Status */}
+          {hasScore && (
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ delay: 0.3, type: "spring" }}
+              className={`inline-flex items-center gap-2 px-6 py-2 rounded-full ${passStatus.bgColor} border ${passStatus.borderColor} mb-4`}
+            >
+              <PassIcon className={`h-5 w-5 ${passStatus.color}`} />
+              <span className={`text-lg font-bold ${passStatus.color}`}>{passStatus.text}</span>
+            </motion.div>
+          )}
+          
           <p className="text-gray-400 mb-6">
             {hasScore 
-              ? 'Congratulations on completing your interview practice!' 
+              ? level.message
               : 'You ended the session without answering any questions.'}
           </p>
           
           {hasScore ? (
-            <div className="mb-8">
+            <>
+              {/* Score with level indicator */}
               <motion.div 
                 initial={{ scale: 0.5 }}
                 animate={{ scale: 1 }}
-                transition={{ delay: 0.3 }}
-                className="text-7xl font-bold bg-gradient-to-r from-green-400 to-emerald-300 bg-clip-text text-transparent mb-2"
+                transition={{ delay: 0.4 }}
+                className="mb-4"
               >
-                {performanceScore}%
+                <div className={`text-7xl font-bold bg-gradient-to-r ${level.color} bg-clip-text text-transparent mb-2`}>
+                  {performanceScore}%
+                </div>
+                <div className={`text-lg font-semibold ${level.textColor}`}>
+                  {level.label}
+                </div>
               </motion.div>
-              <p className="text-gray-400">Overall Performance Score</p>
-            </div>
+              
+              {/* Quick Stats Grid */}
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                <motion.div 
+                  initial={{ x: -20, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={{ delay: 0.5 }}
+                  className="bg-white/5 p-4 rounded-xl border border-white/10"
+                >
+                  <MessageSquare className="h-6 w-6 text-blue-400 mx-auto mb-2" />
+                  <div className="text-2xl font-bold text-white">{questionsAsked}</div>
+                  <div className="text-xs text-gray-400">Questions Attempted</div>
+                </motion.div>
+                
+                <motion.div 
+                  initial={{ x: 20, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={{ delay: 0.5 }}
+                  className="bg-white/5 p-4 rounded-xl border border-white/10"
+                >
+                  <Clock className="h-6 w-6 text-purple-400 mx-auto mb-2" />
+                  <div className="text-2xl font-bold text-white">{formatTime(answerTime)}</div>
+                  <div className="text-xs text-gray-400">Time Spent</div>
+                </motion.div>
+              </div>
+            </>
           ) : (
             <div className="mb-8">
               <div className="text-7xl font-bold text-gray-500 mb-2">—</div>
@@ -2798,39 +2931,72 @@ if (interviewCompleted) {
             </div>
           )}
           
-          <div className="grid grid-cols-2 gap-4 mb-8">
-            <div className="bg-white/5 p-4 rounded-xl border border-white/10">
-              <MessageSquare className="h-6 w-6 text-blue-400 mx-auto mb-2" />
-              <div className="text-2xl font-bold text-white">{questionsAsked}</div>
-              <div className="text-xs text-gray-400">Questions Attempted</div>
-            </div>
-            
-            <div className="bg-white/5 p-4 rounded-xl border border-white/10">
-              <Clock className="h-6 w-6 text-purple-400 mx-auto mb-2" />
-              <div className="text-2xl font-bold text-white">{formatTime(answerTime)}</div>
-              <div className="text-xs text-gray-400">Time Spent</div>
-            </div>
-          </div>
-          
           {/* Improvement Tips Section */}
-          <div className="bg-gradient-to-r from-purple-900/30 to-blue-900/30 p-6 rounded-xl border border-purple-500/30 mb-8 text-left">
-            <h3 className="text-lg font-semibold text-purple-300 mb-3 flex items-center gap-2">
+          <motion.div 
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.6 }}
+            className={`bg-gradient-to-r ${level.bgColor} p-6 rounded-xl border ${level.borderColor} mb-8 text-left`}
+          >
+            <h3 className={`text-lg font-semibold ${level.textColor} mb-3 flex items-center gap-2`}>
               <TrendingUp className="h-5 w-5" />
-              Improvement Tips
+              {passStatus.passed ? 'Great Job! Keep Improving:' : 'Focus Areas:'}
             </h3>
             <p className="text-gray-300 text-sm leading-relaxed">
               {improvementTips}
             </p>
+            
+            {/* Additional Tips based on performance */}
+            {hasScore && performanceScore < 60 && (
+              <div className="mt-4 space-y-2">
+                <div className="flex items-start gap-2 text-sm text-gray-300">
+                  <span className="text-red-400 mt-1">•</span>
+                  <span>Practice speaking more clearly and confidently</span>
+                </div>
+                <div className="flex items-start gap-2 text-sm text-gray-300">
+                  <span className="text-red-400 mt-1">•</span>
+                  <span>Work on providing detailed, structured answers</span>
+                </div>
+                <div className="flex items-start gap-2 text-sm text-gray-300">
+                  <span className="text-red-400 mt-1">•</span>
+                  <span>Focus on maintaining eye contact with the camera</span>
+                </div>
+              </div>
+            )}
+          </motion.div>
+          
+          {/* Action Buttons */}
+          <div className="grid grid-cols-2 gap-4">
+            <motion.button 
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => router.push('/dashboard')}
+              className="px-6 py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-medium shadow-lg hover:shadow-xl"
+            >
+              Go to Dashboard
+            </motion.button>
+            
+            <motion.button 
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => window.location.reload()}
+              className="px-6 py-4 bg-white/10 hover:bg-white/20 text-white rounded-xl font-medium shadow-lg hover:shadow-xl border border-white/20"
+            >
+              Practice Again
+            </motion.button>
           </div>
           
-          <motion.button 
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => router.push('/dashboard')}
-            className="px-8 py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-medium shadow-lg hover:shadow-xl w-full"
-          >
-            Go to Dashboard
-          </motion.button>
+          {/* Retake Suggestion for Failed */}
+          {hasScore && !passStatus.passed && (
+            <motion.p 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.8 }}
+              className="mt-4 text-xs text-gray-500"
+            >
+              Don't give up! Most successful candidates need multiple practice sessions to pass.
+            </motion.p>
+          )}
         </div>
       </motion.div>
     </div>
