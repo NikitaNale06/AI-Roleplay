@@ -776,8 +776,8 @@ function CreateInterviewContent() {
           <span className="absolute inset-0 bg-gradient-to-r from-purple-600 to-blue-600"></span>
           <span className="absolute inset-0 bg-gradient-to-r from-purple-600 to-blue-600 blur-xl group-hover:blur-2xl transition-all"></span>
           <span className="relative flex items-center gap-2">
-            <ArrowLeft className="w-4 h-4" />
-            Dashboard
+            
+            Go to Dashboard
           </span>
         </motion.button>
       </motion.nav>
